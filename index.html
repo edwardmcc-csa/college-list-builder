@@ -1,0 +1,1184 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>College List Builder — College Smart Advising</title>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/react/18.2.0/umd/react.production.min.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/react-dom/18.2.0/umd/react-dom.production.min.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/babel-standalone/7.23.2/babel.min.js"></script>
+  <style>
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body { font-family: Georgia, "Times New Roman", serif; background: #FAF8F3; }
+    @media print {
+      header, button { display: none !important; }
+      .school-card { break-inside: avoid; }
+    }
+  </style>
+</head>
+<body>
+  <div id="root"></div>
+  <script type="text/babel">
+    const { useState, useEffect, useCallback } = React;
+
+
+// ── Brand colors from collegesmartadvising.com ──────────────────────────────
+const BRAND = {
+  navy: "#1B2B4B",
+  gold: "#C9A84C",
+  lightGold: "#F0DFA0",
+  cream: "#FAF8F3",
+  slate: "#4A5568",
+  lightSlate: "#E2E8F0",
+  white: "#FFFFFF",
+  green: "#2D6A4F",
+  red: "#C0392B",
+};
+
+// ── 18 intake questions ──────────────────────────────────────────────────────
+const QUESTIONS = [
+  {
+    id: "gpa",
+    category: "Academic Profile",
+    icon: "📊",
+    text: "What is your current unweighted GPA (on a 4.0 scale)?",
+    type: "single",
+    options: ["3.8 – 4.0", "3.5 – 3.79", "3.0 – 3.49", "2.5 – 2.99", "Below 2.5"],
+  },
+  {
+    id: "test_score",
+    category: "Academic Profile",
+    icon: "📝",
+    text: "What is your SAT / ACT score (or expected range)?",
+    type: "single",
+    options: ["SAT 1400+ / ACT 31+", "SAT 1200–1399 / ACT 26–30", "SAT 1000–1199 / ACT 20–25", "SAT below 1000 / ACT below 20", "Test-optional / not yet taken"],
+  },
+  {
+    id: "course_rigor",
+    category: "Academic Profile",
+    icon: "🎓",
+    text: "How would you describe your course rigor?",
+    type: "single",
+    options: ["Many AP/IB courses (5+)", "Some AP/IB courses (2–4)", "Honors courses primarily", "Standard college-prep track"],
+  },
+  {
+    id: "location_pref",
+    category: "Geographic Preferences",
+    icon: "🗺️",
+    text: "Where do you want to go to college?",
+    type: "multi",
+    options: ["Close to home (within 3 hrs)", "Anywhere in California", "West Coast", "East Coast", "Midwest", "South / Southeast", "Open to anywhere in the US"],
+  },
+  {
+    id: "state_school",
+    category: "Geographic Preferences",
+    icon: "🏛️",
+    text: "Are you interested in UC or CSU schools?",
+    type: "single",
+    options: ["Yes — high priority", "Yes — as one option among many", "Maybe, not sure yet", "No preference / out-of-state only"],
+  },
+  {
+    id: "campus_size",
+    category: "Campus Size & Setting",
+    icon: "🏫",
+    text: "What campus size feels right for you?",
+    type: "single",
+    options: ["Small (under 3,000 students)", "Medium (3,000–10,000 students)", "Large (10,000–25,000 students)", "Very large (25,000+ students)", "No preference — doesn't matter"],
+  },
+  {
+    id: "campus_setting",
+    category: "Campus Size & Setting",
+    icon: "🌆",
+    text: "What kind of campus environment excites you?",
+    type: "multi",
+    options: ["Urban / city campus", "Suburban campus", "Rural / college-town", "Beach / coastal", "Mountain / outdoor access"],
+  },
+  {
+    id: "major",
+    category: "Major / Field of Study",
+    icon: "📚",
+    text: "What field(s) are you most interested in studying?",
+    type: "multi",
+    options: ["STEM (science, math, engineering, tech)", "Business / Economics", "Social Sciences / Humanities", "Arts / Design / Film", "Pre-Med / Health Sciences", "Law / Political Science", "Education", "Undecided / Exploring"],
+  },
+  {
+    id: "program_priority",
+    category: "Major / Field of Study",
+    icon: "⭐",
+    text: "How important is it that your school has a top-ranked program in your field?",
+    type: "single",
+    options: ["Very important — it's a top factor", "Somewhat important", "Nice to have, not essential", "Not a priority / doesn't matter"],
+  },
+  {
+    id: "budget",
+    category: "Financial Considerations",
+    icon: "💰",
+    text: "What is your approximate annual budget for college (before aid)?",
+    type: "single",
+    options: ["Under $20,000/year", "$20,000 – $35,000/year", "$35,000 – $55,000/year", "$55,000+/year (private school tuition)", "Need maximum financial aid / merit scholarships"],
+  },
+  {
+    id: "fin_aid",
+    category: "Financial Considerations",
+    icon: "🎯",
+    text: "How important are merit scholarships or financial aid in your decision?",
+    type: "single",
+    options: ["Critical — it will determine where I go", "Very important", "Somewhat important", "Not a major factor / doesn't matter"],
+  },
+  {
+    id: "rotc",
+    category: "Financial Considerations",
+    icon: "🎖️",
+    text: "Are you interested in ROTC (Reserve Officers' Training Corps) scholarships?",
+    type: "single",
+    options: ["Yes — Army ROTC", "Yes — Navy / Marine ROTC", "Yes — Air Force ROTC", "Open to any ROTC branch", "No / not interested", "Not sure / tell me more"],
+  },
+  {
+    id: "campus_culture",
+    category: "Campus Culture",
+    icon: "🎉",
+    text: "What campus culture matters most to you?",
+    type: "multi",
+    options: ["Strong Greek life / social scene", "Research opportunities", "Community service / civic focus", "Entrepreneurship / startup culture", "Arts & performance scene", "Tight-knit / close community", "Diversity & inclusion focus", "Religious / values-based environment"],
+  },
+  {
+    id: "class_size",
+    category: "Campus Culture",
+    icon: "👩‍🏫",
+    text: "How do you prefer to learn?",
+    type: "single",
+    options: ["Small seminars & discussion (under 20 students)", "Medium classes (20–50 students)", "Large lectures are fine", "No preference — doesn't matter"],
+  },
+  {
+    id: "career_goals",
+    category: "Career & Prestige",
+    icon: "💼",
+    text: "What are your post-graduation career goals?",
+    type: "multi",
+    options: ["Graduate / professional school (law, med, MBA)", "Tech / startup industry", "Finance / consulting", "Government / public service", "Creative industries", "Healthcare", "Undecided / still exploring"],
+  },
+  {
+    id: "prestige",
+    category: "Career & Prestige",
+    icon: "🏆",
+    text: "How much does school prestige / name recognition matter to you?",
+    type: "single",
+    options: ["Very important — I want a highly ranked school", "Somewhat important", "I care more about fit than rankings", "Doesn't matter at all"],
+  },
+  {
+    id: "sports",
+    category: "Athletics & Activities",
+    icon: "⚽",
+    text: "Are you interested in NCAA athletics?",
+    type: "single",
+    options: ["Yes — I plan to play Division I", "Yes — Division II or III", "Club or intramural sports only", "Not interested / doesn't matter"],
+  },
+  {
+    id: "extracurriculars",
+    category: "Athletics & Activities",
+    icon: "🎭",
+    text: "Which extracurricular opportunities are important to you?",
+    type: "multi",
+    options: ["Performing arts (music, theater, dance)", "Student government / leadership", "Research / lab opportunities", "Study abroad programs", "Internship connections", "Clubs & organizations variety", "Community service / volunteering"],
+  },
+  {
+    id: "deal_breakers",
+    category: "Final Priorities",
+    icon: "🚦",
+    text: "Any absolute must-haves or deal-breakers?",
+    type: "multi",
+    options: ["Must be in California", "Must be test-optional", "Must have ROTC program", "Must have automatic merit scholarships for OOS students", "Must have strong Greek life", "Must have no Greek life", "Must be religiously affiliated", "Must be secular", "Must have strong internship/job placement", "None — I'm open"],
+  },
+];
+
+// ── School database ────────────────────────────────────────────────────────
+const SCHOOL_DB = [
+  { name: "UC Berkeley", type: "Public", state: "CA", size: "large", setting: ["urban"], avg_gpa: 4.15, avg_sat: 1415, cost: 35000, majors: ["STEM","Business / Economics","Social Sciences / Humanities","Law / Political Science"], prestige: "elite", features: ["Research opportunities","Entrepreneurship / startup culture","Diversity & inclusion focus"], athletics: "D1", description: "One of the world's top public universities, combining elite research with the energy of the Bay Area." , test_optional: true, rotc: ["Army","Navy","AirForce"], auto_scholarship: "" },
+  { name: "UCLA", type: "Public", state: "CA", size: "large", setting: ["suburban","urban"], avg_gpa: 4.15, avg_sat: 1405, cost: 35000, majors: ["STEM","Business / Economics","Social Sciences / Humanities","Pre-Med / Health Sciences","Arts / Design / Film","Law / Political Science"], prestige: "high", features: ["Research opportunities","Diversity & inclusion focus","Strong Greek life / social scene"], athletics: "D1", description: "A flagship UC campus in Westwood with world-class academics, Bruin pride, and an unbeatable LA location." , test_optional: true, rotc: ["Army","Navy","AirForce"], auto_scholarship: "" },
+  { name: "UC San Diego", type: "Public", state: "CA", size: "large", setting: ["suburban","beach/coastal"], avg_gpa: 4.1, avg_sat: 1395, cost: 35000, majors: ["STEM","Pre-Med / Health Sciences","Business / Economics"], prestige: "high", features: ["Research opportunities","Diversity & inclusion focus"], athletics: "D1", description: "A research powerhouse near La Jolla's beaches, especially strong in STEM, biomedical sciences, and oceanography." , test_optional: true, rotc: ["Army","Navy","AirForce"], auto_scholarship: "" },
+  { name: "UC Santa Barbara", type: "Public", state: "CA", size: "large", setting: ["beach/coastal","suburban"], avg_gpa: 4.0, avg_sat: 1320, cost: 33000, majors: ["STEM","Social Sciences / Humanities","Arts / Design / Film"], prestige: "medium-high", features: ["Research opportunities","Strong Greek life / social scene"], athletics: "D1", description: "Beautiful oceanside campus with top research programs and a vibrant social scene in Goleta." , test_optional: true, rotc: ["Army","Navy"], auto_scholarship: "" },
+  { name: "UC Davis", type: "Public", state: "CA", size: "large", setting: ["rural/college-town"], avg_gpa: 4.0, avg_sat: 1320, cost: 33000, majors: ["STEM","Pre-Med / Health Sciences","Social Sciences / Humanities","Education"], prestige: "medium-high", features: ["Research opportunities","Community service / civic focus"], athletics: "D1", description: "A top ag and biomedical research school in a welcoming college-town atmosphere." , test_optional: true, rotc: ["Army","AirForce"], auto_scholarship: "" },
+  { name: "UC Irvine", type: "Public", state: "CA", size: "large", setting: ["suburban"], avg_gpa: 3.95, avg_sat: 1295, cost: 33000, majors: ["STEM","Business / Economics","Pre-Med / Health Sciences","Social Sciences / Humanities"], prestige: "medium-high", features: ["Research opportunities","Diversity & inclusion focus"], athletics: "D1", description: "A rising UC campus in Orange County with excellent pre-med, tech, and social science programs." , test_optional: true, rotc: ["Army","Navy"], auto_scholarship: "" },
+  { name: "UC Santa Cruz", type: "Public", state: "CA", size: "medium", setting: ["rural/college-town","suburban"], avg_gpa: 3.85, avg_sat: 1250, cost: 32000, majors: ["STEM","Arts / Design / Film","Social Sciences / Humanities"], prestige: "medium", features: ["Research opportunities","Community service / civic focus"], athletics: "D3", description: "A unique redwood-forested campus near Monterey Bay known for creativity, sustainability, and pioneering research." , test_optional: true, rotc: ["Army"], auto_scholarship: "" },
+  { name: "UC Riverside", type: "Public", state: "CA", size: "large", setting: ["suburban"], avg_gpa: 3.75, avg_sat: 1200, cost: 31000, majors: ["STEM","Business / Economics","Social Sciences / Humanities","Pre-Med / Health Sciences"], prestige: "medium", features: ["Research opportunities","Diversity & inclusion focus"], athletics: "D1", description: "An Inland Empire UC campus with strong STEM and pre-med programs and a diverse, welcoming community." , test_optional: true, rotc: ["Army","AirForce"], auto_scholarship: "" },
+  { name: "UC Merced", type: "Public", state: "CA", size: "medium", setting: ["rural/college-town"], avg_gpa: 3.6, avg_sat: 1160, cost: 30000, majors: ["STEM","Social Sciences / Humanities","Pre-Med / Health Sciences"], prestige: "medium", features: ["Research opportunities","Diversity & inclusion focus"], athletics: "NAIA", description: "The newest UC campus, offering small class sizes, growing research programs, and a gateway to Yosemite." , test_optional: true, rotc: ["Army"], auto_scholarship: "" },
+  { name: "Cal Poly SLO", type: "Public", state: "CA", size: "medium", setting: ["suburban","rural/college-town"], avg_gpa: 4.0, avg_sat: 1330, cost: 28000, majors: ["STEM","Business / Economics","Arts / Design / Film"], prestige: "medium-high", features: ["Entrepreneurship / startup culture"], athletics: "D1", description: "Learn by doing at this top polytechnic school on California's scenic Central Coast." , test_optional: false, rotc: ["Army","AirForce"], auto_scholarship: "" },
+  { name: "Cal Poly Pomona", type: "Public", state: "CA", size: "medium", setting: ["suburban"], avg_gpa: 3.7, avg_sat: 1160, cost: 22000, majors: ["STEM","Business / Economics","Arts / Design / Film"], prestige: "medium", features: ["Entrepreneurship / startup culture"], athletics: "D2", description: "Affordable polytechnic education in the Inland Empire with hands-on programs and strong industry connections." , test_optional: false, rotc: ["Army"], auto_scholarship: "" },
+  { name: "SDSU", type: "Public", state: "CA", size: "large", setting: ["urban","suburban"], avg_gpa: 3.75, avg_sat: 1215, cost: 24000, majors: ["Business / Economics","Arts / Design / Film","Social Sciences / Humanities","STEM"], prestige: "medium", features: ["Strong Greek life / social scene","Diversity & inclusion focus"], athletics: "D1", description: "A major San Diego state university with a lively campus culture and strong programs in business, media, and engineering." , test_optional: false, rotc: ["Army","Navy","AirForce"], auto_scholarship: "" },
+  { name: "CSULB", type: "Public", state: "CA", size: "large", setting: ["suburban","beach/coastal"], avg_gpa: 3.65, avg_sat: 1130, cost: 20000, majors: ["Arts / Design / Film","Business / Economics","STEM","Education"], prestige: "medium", features: ["Arts & performance scene","Diversity & inclusion focus"], athletics: "D1", description: "Cal State Long Beach offers excellent arts, business, and engineering programs near the ocean." , test_optional: false, rotc: ["Army","AirForce"], auto_scholarship: "" },
+  { name: "CSUF", type: "Public", state: "CA", size: "large", setting: ["suburban"], avg_gpa: 3.55, avg_sat: 1090, cost: 20000, majors: ["Business / Economics","STEM","Arts / Design / Film","Education"], prestige: "medium", features: ["Diversity & inclusion focus","Community service / civic focus"], athletics: "D1", description: "A large Orange County campus with one of California's best business and communications programs." , test_optional: false, rotc: ["Army"], auto_scholarship: "" },
+  { name: "CSUN", type: "Public", state: "CA", size: "large", setting: ["suburban"], avg_gpa: 3.45, avg_sat: 1060, cost: 19000, majors: ["Business / Economics","Arts / Design / Film","Education","STEM"], prestige: "medium", features: ["Arts & performance scene","Diversity & inclusion focus"], athletics: "D1", description: "Cal State Northridge has a strong film and media program with close ties to the entertainment industry." , test_optional: false, rotc: ["Army"], auto_scholarship: "" },
+  { name: "CSULA", type: "Public", state: "CA", size: "large", setting: ["urban"], avg_gpa: 3.4, avg_sat: 1040, cost: 19000, majors: ["Business / Economics","STEM","Social Sciences / Humanities","Education"], prestige: "medium", features: ["Diversity & inclusion focus","Community service / civic focus"], athletics: "D2", description: "A diverse urban Cal State campus in East LA with strong community ties and career-focused programs." , test_optional: false, rotc: ["Army"], auto_scholarship: "" },
+  { name: "San Jose State", type: "Public", state: "CA", size: "large", setting: ["urban"], avg_gpa: 3.5, avg_sat: 1100, cost: 20000, majors: ["STEM","Business / Economics","Arts / Design / Film","Education"], prestige: "medium", features: ["Entrepreneurship / startup culture","Diversity & inclusion focus"], athletics: "D1", description: "Located in the heart of Silicon Valley, SJSU offers tech-forward programs with exceptional industry access." , test_optional: false, rotc: ["Army","AirForce"], auto_scholarship: "" },
+  { name: "SF State", type: "Public", state: "CA", size: "large", setting: ["urban"], avg_gpa: 3.35, avg_sat: 1050, cost: 20000, majors: ["Arts / Design / Film","Social Sciences / Humanities","Business / Economics","Education"], prestige: "medium", features: ["Arts & performance scene","Diversity & inclusion focus"], athletics: "D2", description: "An urban San Francisco campus with strong arts, cinema, and social justice programs." , test_optional: false, rotc: ["Army"], auto_scholarship: "" },
+  { name: "Cal State San Marcos", type: "Public", state: "CA", size: "medium", setting: ["suburban"], avg_gpa: 3.5, avg_sat: 1060, cost: 19000, majors: ["Business / Economics","STEM","Social Sciences / Humanities","Education"], prestige: "medium", features: ["Diversity & inclusion focus","Community service / civic focus"], athletics: "D2", description: "A growing North San Diego County campus offering personalized education in a modern setting." , test_optional: false, rotc: ["Army"], auto_scholarship: "" },
+  { name: "Cal State Chico", type: "Public", state: "CA", size: "medium", setting: ["rural/college-town"], avg_gpa: 3.45, avg_sat: 1060, cost: 19000, majors: ["Business / Economics","STEM","Social Sciences / Humanities","Arts / Design / Film"], prestige: "medium", features: ["Strong Greek life / social scene","Arts & performance scene"], athletics: "D2", description: "A classic college-town CSU in Northern California known for its vibrant social scene and strong business program." , test_optional: false, rotc: ["Army"], auto_scholarship: "" },
+  { name: "Cal State East Bay", type: "Public", state: "CA", size: "medium", setting: ["suburban"], avg_gpa: 3.3, avg_sat: 1010, cost: 19000, majors: ["Business / Economics","STEM","Social Sciences / Humanities","Education"], prestige: "medium", features: ["Diversity & inclusion focus","Community service / civic focus"], athletics: "D2", description: "A Bay Area CSU campus with strong connections to Oakland and Silicon Valley employers." , test_optional: false, rotc: ["Army"], auto_scholarship: "" },
+  { name: "Cal State Monterey Bay", type: "Public", state: "CA", size: "medium", setting: ["rural/college-town","beach/coastal"], avg_gpa: 3.3, avg_sat: 1010, cost: 19000, majors: ["STEM","Social Sciences / Humanities","Business / Economics","Education"], prestige: "medium", features: ["Community service / civic focus","Diversity & inclusion focus"], athletics: "D2", description: "A beautiful coastal campus near Monterey with a service-learning focus and strong marine sciences." , test_optional: false, rotc: ["Army"], auto_scholarship: "" },
+  { name: "Humboldt State (Cal Poly Humboldt)", type: "Public", state: "CA", size: "medium", setting: ["rural/college-town"], avg_gpa: 3.3, avg_sat: 1020, cost: 19000, majors: ["STEM","Social Sciences / Humanities","Arts / Design / Film","Education"], prestige: "medium", features: ["Community service / civic focus","Research opportunities"], athletics: "D2", description: "California's north coast polytechnic with exceptional environmental science and indigenous studies programs." , test_optional: false, rotc: ["Army"], auto_scholarship: "" },
+  { name: "Sonoma State University", type: "Public", state: "CA", size: "medium", setting: ["suburban"], avg_gpa: 3.3, avg_sat: 1020, cost: 19000, majors: ["Business / Economics","Arts / Design / Film","Social Sciences / Humanities","STEM"], prestige: "medium", features: ["Arts & performance scene","Community service / civic focus"], athletics: "D2", description: "A wine country Cal State campus with strong business, performing arts, and environmental studies programs." , test_optional: false, rotc: ["Army"], auto_scholarship: "" },
+  { name: "Cal State Bakersfield", type: "Public", state: "CA", size: "medium", setting: ["suburban"], avg_gpa: 3.2, avg_sat: 980, cost: 18000, majors: ["Business / Economics","STEM","Social Sciences / Humanities","Education"], prestige: "medium", features: ["Diversity & inclusion focus","Community service / civic focus"], athletics: "D1", description: "Central Valley's CSU campus with career-focused education and strong community ties in Bakersfield." , test_optional: false, rotc: ["Army"], auto_scholarship: "" },
+  { name: "Cal State San Bernardino", type: "Public", state: "CA", size: "large", setting: ["suburban"], avg_gpa: 3.2, avg_sat: 970, cost: 18000, majors: ["Business / Economics","STEM","Social Sciences / Humanities","Education"], prestige: "medium", features: ["Diversity & inclusion focus","Community service / civic focus"], athletics: "D2", description: "An Inland Empire CSU with strong criminal justice, business, and health science programs." , test_optional: false, rotc: ["Army"], auto_scholarship: "" },
+  { name: "Cal State Dominguez Hills", type: "Public", state: "CA", size: "medium", setting: ["suburban"], avg_gpa: 3.1, avg_sat: 960, cost: 18000, majors: ["Business / Economics","Social Sciences / Humanities","STEM","Education"], prestige: "medium", features: ["Diversity & inclusion focus","Community service / civic focus"], athletics: "D2", description: "A South Bay CSU with strong nursing, business, and social work programs serving diverse LA communities." , test_optional: false, rotc: ["Army"], auto_scholarship: "" },
+  { name: "Cal State Stanislaus", type: "Public", state: "CA", size: "medium", setting: ["suburban"], avg_gpa: 3.2, avg_sat: 970, cost: 18000, majors: ["Business / Economics","Education","Social Sciences / Humanities","STEM"], prestige: "medium", features: ["Community service / civic focus","Diversity & inclusion focus"], athletics: "D2", description: "A Central Valley CSU with strong education, business, and social work programs." , test_optional: false, rotc: ["Army"], auto_scholarship: "" },
+  { name: "Stanford University", type: "Private", state: "CA", size: "large", setting: ["suburban"], avg_gpa: 3.96, avg_sat: 1510, cost: 60000, majors: ["STEM","Business / Economics","Social Sciences / Humanities","Law / Political Science"], prestige: "elite", features: ["Research opportunities","Entrepreneurship / startup culture"], athletics: "D1", description: "The crown jewel of Silicon Valley, combining elite academics with unmatched research and startup culture." , test_optional: true, rotc: ["Army","Navy","AirForce"], auto_scholarship: "" },
+  { name: "Caltech", type: "Private", state: "CA", size: "small", setting: ["suburban"], avg_gpa: 4.1, avg_sat: 1570, cost: 60000, majors: ["STEM"], prestige: "elite", features: ["Research opportunities","Tight-knit / close community"], athletics: "D3", description: "The world's most STEM-concentrated research university in Pasadena, tiny, brilliant, and producing Nobel laureates." , test_optional: true, rotc: [], auto_scholarship: "" },
+  { name: "USC", type: "Private", state: "CA", size: "large", setting: ["urban"], avg_gpa: 3.9, avg_sat: 1455, cost: 65000, majors: ["Business / Economics","Arts / Design / Film","STEM","Law / Political Science","Social Sciences / Humanities"], prestige: "high", features: ["Strong Greek life / social scene","Entrepreneurship / startup culture","Arts & performance scene"], athletics: "D1", description: "A prestigious LA private university with powerhouse alumni networks in entertainment, business, and tech." , test_optional: true, rotc: ["Army","Navy","AirForce"], auto_scholarship: "" },
+  { name: "Pomona College", type: "Private", state: "CA", size: "small", setting: ["suburban"], avg_gpa: 3.9, avg_sat: 1495, cost: 60000, majors: ["Social Sciences / Humanities","STEM","Arts / Design / Film"], prestige: "high", features: ["Research opportunities","Tight-knit / close community"], athletics: "D3", description: "Top-ranked liberal arts college in Claremont with small seminars and outstanding faculty access." , test_optional: true, rotc: ["Army","Navy","AirForce"], auto_scholarship: "" },
+  { name: "Claremont McKenna College", type: "Private", state: "CA", size: "small", setting: ["suburban"], avg_gpa: 3.9, avg_sat: 1480, cost: 60000, majors: ["Business / Economics","Law / Political Science","Social Sciences / Humanities"], prestige: "high", features: ["Tight-knit / close community","Research opportunities"], athletics: "D3", description: "A highly selective liberal arts college famed for economics, government, and leadership development." , test_optional: true, rotc: ["Army","Navy","AirForce"], auto_scholarship: "" },
+  { name: "Harvey Mudd College", type: "Private", state: "CA", size: "small", setting: ["suburban"], avg_gpa: 4.1, avg_sat: 1540, cost: 62000, majors: ["STEM"], prestige: "elite", features: ["Research opportunities","Tight-knit / close community"], athletics: "D3", description: "One of the country's top STEM colleges with extraordinary job placement and a deeply collaborative culture." , test_optional: true, rotc: ["Army","Navy","AirForce"], auto_scholarship: "" },
+  { name: "Scripps College", type: "Private", state: "CA", size: "small", setting: ["suburban"], avg_gpa: 3.9, avg_sat: 1440, cost: 61000, majors: ["Social Sciences / Humanities","Arts / Design / Film","STEM"], prestige: "high", features: ["Tight-knit / close community","Arts & performance scene"], athletics: "D3", description: "A women's liberal arts college in Claremont with exceptional humanities and fine arts programs." , test_optional: true, rotc: ["Army","Navy","AirForce"], auto_scholarship: "" },
+  { name: "Pitzer College", type: "Private", state: "CA", size: "small", setting: ["suburban"], avg_gpa: 3.85, avg_sat: 1370, cost: 60000, majors: ["Social Sciences / Humanities","Arts / Design / Film"], prestige: "high", features: ["Community service / civic focus","Study abroad programs","Tight-knit / close community"], athletics: "D3", description: "A progressive Claremont Colleges school known for social responsibility, interdisciplinary study, and study abroad." , test_optional: true, rotc: ["Army","Navy","AirForce"], auto_scholarship: "" },
+  { name: "Occidental College", type: "Private", state: "CA", size: "small", setting: ["urban","suburban"], avg_gpa: 3.8, avg_sat: 1380, cost: 62000, majors: ["Social Sciences / Humanities","STEM","Arts / Design / Film","Law / Political Science"], prestige: "high", features: ["Tight-knit / close community","Community service / civic focus"], athletics: "D3", description: "A top LA liberal arts college with strong diplomacy, urban engagement, and pre-law programs." , test_optional: true, rotc: ["Army","AirForce"], auto_scholarship: "" },
+  { name: "Pepperdine University", type: "Private", state: "CA", size: "medium", setting: ["suburban","beach/coastal"], avg_gpa: 3.8, avg_sat: 1330, cost: 60000, majors: ["Business / Economics","Law / Political Science","Social Sciences / Humanities"], prestige: "medium-high", features: ["Religious / values-based environment","Study abroad programs"], athletics: "D1", description: "A beautiful Malibu campus with strong business and law programs and a values-based Christian mission." , test_optional: true, rotc: ["Army","Navy"], auto_scholarship: "" },
+  { name: "Loyola Marymount University", type: "Private", state: "CA", size: "medium", setting: ["urban","suburban"], avg_gpa: 3.7, avg_sat: 1280, cost: 58000, majors: ["Business / Economics","Arts / Design / Film","Social Sciences / Humanities","Pre-Med / Health Sciences"], prestige: "medium", features: ["Religious / values-based environment","Arts & performance scene"], athletics: "D1", description: "A Jesuit university in LA known for film, business, and a welcoming community with strong values." , test_optional: true, rotc: ["Army","AirForce"], auto_scholarship: "" },
+  { name: "Santa Clara University", type: "Private", state: "CA", size: "medium", setting: ["suburban"], avg_gpa: 3.75, avg_sat: 1350, cost: 60000, majors: ["Business / Economics","STEM","Law / Political Science","Social Sciences / Humanities"], prestige: "medium-high", features: ["Religious / values-based environment","Entrepreneurship / startup culture","Community service / civic focus"], athletics: "D1", description: "A Jesuit university in the heart of Silicon Valley, ideal for business, engineering, and values-driven education." , test_optional: true, rotc: ["Army","AirForce"], auto_scholarship: "" },
+  { name: "University of San Diego", type: "Private", state: "CA", size: "medium", setting: ["urban","suburban"], avg_gpa: 3.65, avg_sat: 1270, cost: 58000, majors: ["Business / Economics","Law / Political Science","Social Sciences / Humanities","Pre-Med / Health Sciences"], prestige: "medium", features: ["Religious / values-based environment","Tight-knit / close community","Study abroad programs"], athletics: "D1", description: "A beautiful hilltop Catholic university in San Diego with strong law, business, and international programs." , test_optional: true, rotc: ["Army","Navy"], auto_scholarship: "" },
+  { name: "Chapman University", type: "Private", state: "CA", size: "medium", setting: ["suburban"], avg_gpa: 3.8, avg_sat: 1290, cost: 58000, majors: ["Arts / Design / Film","Business / Economics","Law / Political Science","Social Sciences / Humanities"], prestige: "medium", features: ["Arts & performance scene","Tight-knit / close community"], athletics: "D3", description: "A boutique Orange County university renowned for its film school, law programs, and intimate campus culture." , test_optional: true, rotc: ["Army"], auto_scholarship: "" },
+  { name: "University of San Francisco", type: "Private", state: "CA", size: "medium", setting: ["urban"], avg_gpa: 3.5, avg_sat: 1200, cost: 56000, majors: ["Business / Economics","Law / Political Science","Pre-Med / Health Sciences","Social Sciences / Humanities"], prestige: "medium-high", features: ["Religious / values-based environment","Community service / civic focus","Diversity & inclusion focus"], athletics: "D1", description: "A Jesuit university in one of the world's greatest cities with strong nursing, business, and social justice programs." , test_optional: true, rotc: ["Army"], auto_scholarship: "" },
+  { name: "Saint Mary's College of California", type: "Private", state: "CA", size: "small", setting: ["suburban"], avg_gpa: 3.45, avg_sat: 1100, cost: 52000, majors: ["Business / Economics","Social Sciences / Humanities","Pre-Med / Health Sciences","Arts / Design / Film"], prestige: "medium", features: ["Religious / values-based environment","Tight-knit / close community"], athletics: "D1", description: "A Lasallian Catholic college in Moraga with strong business, liberal arts, and nursing programs in the East Bay hills." , test_optional: true, rotc: ["Army"], auto_scholarship: "" },
+  { name: "University of the Pacific", type: "Private", state: "CA", size: "medium", setting: ["suburban"], avg_gpa: 3.6, avg_sat: 1190, cost: 52000, majors: ["Pre-Med / Health Sciences","Business / Economics","STEM","Arts / Design / Film"], prestige: "medium", features: ["Tight-knit / close community","Research opportunities"], athletics: "D1", description: "California's oldest university with top pharmacy and health sciences programs in Stockton." , test_optional: true, rotc: ["Army"], auto_scholarship: "" },
+  { name: "Biola University", type: "Private", state: "CA", size: "medium", setting: ["suburban"], avg_gpa: 3.6, avg_sat: 1180, cost: 45000, majors: ["Social Sciences / Humanities","Arts / Design / Film","Business / Economics","Pre-Med / Health Sciences"], prestige: "medium", features: ["Religious / values-based environment","Tight-knit / close community"], athletics: "D2", description: "A Christian university in La Mirada with strong theology, communications, and nursing programs." , test_optional: false, rotc: ["Army"], auto_scholarship: "" },
+  { name: "Westmont College", type: "Private", state: "CA", size: "small", setting: ["suburban","beach/coastal"], avg_gpa: 3.7, avg_sat: 1210, cost: 52000, majors: ["Social Sciences / Humanities","STEM","Arts / Design / Film","Business / Economics"], prestige: "medium-high", features: ["Religious / values-based environment","Tight-knit / close community"], athletics: "NAIA", description: "A Christian liberal arts college above Santa Barbara with breathtaking views and strong pre-med programs." , test_optional: true, rotc: [], auto_scholarship: "" },
+  { name: "Point Loma Nazarene University", type: "Private", state: "CA", size: "small", setting: ["beach/coastal","suburban"], avg_gpa: 3.6, avg_sat: 1160, cost: 42000, majors: ["Pre-Med / Health Sciences","Business / Economics","Social Sciences / Humanities","Education"], prestige: "medium", features: ["Religious / values-based environment","Tight-knit / close community"], athletics: "D2", description: "A Christian university perched above the Pacific Ocean with strong nursing and social work programs." , test_optional: false, rotc: ["Army"], auto_scholarship: "" },
+  { name: "Azusa Pacific University", type: "Private", state: "CA", size: "medium", setting: ["suburban"], avg_gpa: 3.55, avg_sat: 1130, cost: 40000, majors: ["Pre-Med / Health Sciences","Education","Business / Economics","Social Sciences / Humanities"], prestige: "medium", features: ["Religious / values-based environment","Community service / civic focus"], athletics: "D2", description: "A Christian university in the San Gabriel Valley with strong nursing, education, and social work programs." , test_optional: true, rotc: ["Army"], auto_scholarship: "" },
+  { name: "Whittier College", type: "Private", state: "CA", size: "small", setting: ["suburban"], avg_gpa: 3.5, avg_sat: 1120, cost: 52000, majors: ["Social Sciences / Humanities","Business / Economics","Pre-Med / Health Sciences"], prestige: "medium", features: ["Tight-knit / close community","Diversity & inclusion focus"], athletics: "D3", description: "A small liberal arts college in Whittier offering personalized education and strong pre-law programs." , test_optional: true, rotc: ["Army"], auto_scholarship: "" },
+  { name: "California Lutheran University", type: "Private", state: "CA", size: "small", setting: ["suburban"], avg_gpa: 3.55, avg_sat: 1140, cost: 48000, majors: ["Business / Economics","STEM","Social Sciences / Humanities","Arts / Design / Film"], prestige: "medium", features: ["Religious / values-based environment","Tight-knit / close community"], athletics: "D3", description: "A Lutheran liberal arts university in Thousand Oaks blending strong academics with a supportive faith community." , test_optional: true, rotc: ["Army"], auto_scholarship: "" },
+  { name: "ArtCenter College of Design", type: "Private", state: "CA", size: "small", setting: ["suburban"], avg_gpa: 3.3, avg_sat: 1090, cost: 50000, majors: ["Arts / Design / Film"], prestige: "high", features: ["Arts & performance scene","Entrepreneurship / startup culture","Internship connections"], athletics: "no_ncaa", description: "A Pasadena design powerhouse producing industry-leading graphic designers, transportation designers, and filmmakers." , test_optional: true, rotc: [], auto_scholarship: "" },
+  { name: "CalArts", type: "Private", state: "CA", size: "small", setting: ["suburban"], avg_gpa: 3.2, avg_sat: 1040, cost: 52000, majors: ["Arts / Design / Film"], prestige: "high", features: ["Arts & performance scene","Tight-knit / close community"], athletics: "no_ncaa", description: "Walt Disney's school, the breeding ground for Pixar animators, avant-garde theater artists, and experimental filmmakers." , test_optional: true, rotc: [], auto_scholarship: "" },
+  { name: "University of Washington", type: "Public", state: "WA", size: "large", setting: ["urban"], avg_gpa: 3.85, avg_sat: 1330, cost: 40000, majors: ["STEM","Business / Economics","Pre-Med / Health Sciences","Social Sciences / Humanities"], prestige: "high", features: ["Research opportunities","Entrepreneurship / startup culture"], athletics: "D1", description: "Seattle's flagship university with world-class research and excellent proximity to the tech industry." , test_optional: true, rotc: ["Army","Navy","AirForce"], auto_scholarship: "" },
+  { name: "Washington State University", type: "Public", state: "WA", size: "large", setting: ["rural/college-town"], avg_gpa: 3.5, avg_sat: 1110, cost: 27000, majors: ["STEM","Business / Economics","Social Sciences / Humanities","Education"], prestige: "medium", features: ["Strong Greek life / social scene","Research opportunities"], athletics: "D1", description: "A classic Pac-12 land-grant university in Pullman with strong agriculture, business, and engineering programs." , test_optional: true, rotc: ["Army","AirForce"], auto_scholarship: "" },
+  { name: "Western Washington University", type: "Public", state: "WA", size: "medium", setting: ["suburban","urban"], avg_gpa: 3.5, avg_sat: 1150, cost: 24000, majors: ["Business / Economics","Arts / Design / Film","Social Sciences / Humanities","STEM"], prestige: "medium", features: ["Arts & performance scene","Community service / civic focus"], athletics: "D2", description: "A Pacific Northwest gem in Bellingham with strong arts, environmental studies, and business programs." , test_optional: true, rotc: ["Army"], auto_scholarship: "" },
+  { name: "Gonzaga University", type: "Private", state: "WA", size: "medium", setting: ["urban","suburban"], avg_gpa: 3.7, avg_sat: 1240, cost: 52000, majors: ["Business / Economics","Law / Political Science","Social Sciences / Humanities","Pre-Med / Health Sciences"], prestige: "medium-high", features: ["Religious / values-based environment","Tight-knit / close community","Community service / civic focus"], athletics: "D1", description: "A Jesuit university in Spokane known for strong business, law, and a legendary basketball program." , test_optional: true, rotc: ["Army","AirForce"], auto_scholarship: "" },
+  { name: "Seattle University", type: "Private", state: "WA", size: "medium", setting: ["urban"], avg_gpa: 3.6, avg_sat: 1220, cost: 52000, majors: ["Business / Economics","Pre-Med / Health Sciences","Law / Political Science","Social Sciences / Humanities"], prestige: "medium", features: ["Religious / values-based environment","Community service / civic focus","Internship connections"], athletics: "D1", description: "A Jesuit university in the heart of Seattle with strong nursing, law, and social justice programs." , test_optional: true, rotc: ["Army","AirForce"], auto_scholarship: "" },
+  { name: "Whitman College", type: "Private", state: "WA", size: "small", setting: ["rural/college-town"], avg_gpa: 3.85, avg_sat: 1380, cost: 60000, majors: ["Social Sciences / Humanities","STEM","Arts / Design / Film"], prestige: "high", features: ["Research opportunities","Tight-knit / close community","Study abroad programs"], athletics: "D3", description: "A top liberal arts college in Walla Walla known for exceptional student-faculty relationships and outdoor culture." , test_optional: true, rotc: ["Army"], auto_scholarship: "" },
+  { name: "University of Oregon", type: "Public", state: "OR", size: "large", setting: ["suburban","urban"], avg_gpa: 3.55, avg_sat: 1160, cost: 35000, majors: ["Business / Economics","Arts / Design / Film","Social Sciences / Humanities"], prestige: "medium", features: ["Arts & performance scene","Strong Greek life / social scene"], athletics: "D1", description: "A vibrant college-town university known for journalism, business, and its passionate Ducks athletics culture." , test_optional: true, rotc: ["Army","AirForce"], auto_scholarship: "" },
+  { name: "Oregon State University", type: "Public", state: "OR", size: "large", setting: ["rural/college-town"], avg_gpa: 3.6, avg_sat: 1160, cost: 32000, majors: ["STEM","Education","Business / Economics"], prestige: "medium", features: ["Research opportunities","Community service / civic focus"], athletics: "D1", description: "A welcoming research university in Corvallis with strong engineering, agriculture, and environmental programs." , test_optional: false, rotc: ["Army","Navy","AirForce"], auto_scholarship: "" },
+  { name: "Reed College", type: "Private", state: "OR", size: "small", setting: ["suburban"], avg_gpa: 3.9, avg_sat: 1460, cost: 62000, majors: ["Social Sciences / Humanities","STEM","Arts / Design / Film"], prestige: "high", features: ["Research opportunities","Tight-knit / close community"], athletics: "no_ncaa", description: "One of America's most intellectually intense liberal arts colleges, renowned for producing Rhodes scholars and PhD students." , test_optional: true, rotc: [], auto_scholarship: "" },
+  { name: "Lewis & Clark College", type: "Private", state: "OR", size: "small", setting: ["suburban"], avg_gpa: 3.75, avg_sat: 1290, cost: 58000, majors: ["Social Sciences / Humanities","Arts / Design / Film","Law / Political Science"], prestige: "medium-high", features: ["Study abroad programs","Community service / civic focus","Tight-knit / close community"], athletics: "D3", description: "A beautiful Portland liberal arts college known for strong pre-law, environmental studies, and global education." , test_optional: true, rotc: ["Army"], auto_scholarship: "" },
+  { name: "University of Arizona", type: "Public", state: "AZ", size: "large", setting: ["urban","suburban"], avg_gpa: 3.5, avg_sat: 1180, cost: 32000, majors: ["STEM","Business / Economics","Social Sciences / Humanities","Pre-Med / Health Sciences"], prestige: "medium", features: ["Strong Greek life / social scene","Research opportunities"], athletics: "D1", description: "A major Pac-12 university with strong merit scholarships, a lively campus, and top programs in many fields." , test_optional: true, rotc: ["Army","Navy","AirForce"], auto_scholarship: "Automatic merit: $15K–$30K/yr for OOS students with 3.5+ GPA and 1200+ SAT" },
+  { name: "Arizona State University", type: "Public", state: "AZ", size: "very large", setting: ["urban","suburban"], avg_gpa: 3.45, avg_sat: 1160, cost: 30000, majors: ["Business / Economics","STEM","Social Sciences / Humanities","Arts / Design / Film"], prestige: "medium", features: ["Entrepreneurship / startup culture","Diversity & inclusion focus"], athletics: "D1", description: "One of the largest and most innovative universities in the US, with extensive programs and strong industry ties." , test_optional: true, rotc: ["Army","Navy","AirForce"], auto_scholarship: "Automatic merit: New American University Scholarship ($10K–$19K/yr) for OOS with 3.5+ GPA" },
+  { name: "Northern Arizona University", type: "Public", state: "AZ", size: "large", setting: ["suburban","mountain/outdoor"], avg_gpa: 3.4, avg_sat: 1080, cost: 26000, majors: ["STEM","Business / Economics","Education","Social Sciences / Humanities"], prestige: "medium", features: ["Community service / civic focus","Research opportunities"], athletics: "D1", description: "A Flagstaff university with strong hotel management, forestry, and nursing programs near the Grand Canyon." , test_optional: true, rotc: ["Army","AirForce"], auto_scholarship: "Automatic merit: $10K–$15K/yr for OOS students with 3.25+ GPA and 1100+ SAT" },
+  { name: "University of Colorado Boulder", type: "Public", state: "CO", size: "large", setting: ["suburban","mountain/outdoor"], avg_gpa: 3.7, avg_sat: 1260, cost: 38000, majors: ["STEM","Business / Economics","Social Sciences / Humanities","Arts / Design / Film"], prestige: "medium-high", features: ["Research opportunities","Arts & performance scene"], athletics: "D1", description: "A stunning mountain campus in Boulder with excellent aerospace, environmental, and creative arts programs." , test_optional: true, rotc: ["Army","AirForce"], auto_scholarship: "Automatic merit: Regent Scholarship ($18K/yr) for OOS with 3.75+ GPA and 1350+ SAT" },
+  { name: "Colorado State University", type: "Public", state: "CO", size: "large", setting: ["suburban","rural/college-town"], avg_gpa: 3.6, avg_sat: 1190, cost: 30000, majors: ["STEM","Business / Economics","Social Sciences / Humanities","Education"], prestige: "medium", features: ["Research opportunities","Community service / civic focus"], athletics: "D1", description: "Fort Collins' flagship with strong veterinary, environmental, and business programs in a vibrant college town." , test_optional: true, rotc: ["Army","AirForce"], auto_scholarship: "Automatic merit: $8K–$12K/yr for OOS students with 3.5+ GPA" },
+  { name: "Colorado College", type: "Private", state: "CO", size: "small", setting: ["suburban","mountain/outdoor"], avg_gpa: 3.85, avg_sat: 1390, cost: 62000, majors: ["Social Sciences / Humanities","STEM","Arts / Design / Film"], prestige: "high", features: ["Tight-knit / close community","Research opportunities","Study abroad programs"], athletics: "D3", description: "A top liberal arts school in Colorado Springs with a unique block plan, one intensive course at a time." , test_optional: true, rotc: ["Army"], auto_scholarship: "" },
+  { name: "University of Denver", type: "Private", state: "CO", size: "medium", setting: ["urban","suburban"], avg_gpa: 3.75, avg_sat: 1290, cost: 58000, majors: ["Business / Economics","Social Sciences / Humanities","Law / Political Science","Arts / Design / Film"], prestige: "medium-high", features: ["Entrepreneurship / startup culture","Study abroad programs","Research opportunities"], athletics: "D1", description: "A prestigious private university in Denver with top programs in business, law, and international affairs." , test_optional: true, rotc: ["Army","AirForce"], auto_scholarship: "Automatic merit: $20K–$28K/yr for OOS students with strong GPA and test scores" },
+  { name: "University of Utah", type: "Public", state: "UT", size: "large", setting: ["urban","mountain/outdoor"], avg_gpa: 3.6, avg_sat: 1220, cost: 30000, majors: ["STEM","Business / Economics","Pre-Med / Health Sciences","Social Sciences / Humanities"], prestige: "medium-high", features: ["Research opportunities","Entrepreneurship / startup culture"], athletics: "D1", description: "Salt Lake City's flagship with top medical and engineering programs and easy access to world-class ski resorts." , test_optional: true, rotc: ["Army","AirForce"], auto_scholarship: "Automatic merit: Presidential Scholarship ($12K/yr) for OOS with 3.7+ GPA and 1300+ SAT" },
+  { name: "Brigham Young University", type: "Private", state: "UT", size: "large", setting: ["suburban"], avg_gpa: 3.8, avg_sat: 1290, cost: 14000, majors: ["Business / Economics","STEM","Social Sciences / Humanities","Education","Law / Political Science"], prestige: "medium-high", features: ["Religious / values-based environment","Entrepreneurship / startup culture"], athletics: "D1", description: "One of America's best values in higher education, elite-level academics at a remarkably low tuition for LDS members." , test_optional: false, rotc: ["Army","Navy","AirForce"], auto_scholarship: "" },
+  { name: "University of Nevada Reno", type: "Public", state: "NV", size: "large", setting: ["urban"], avg_gpa: 3.5, avg_sat: 1150, cost: 24000, majors: ["STEM","Business / Economics","Pre-Med / Health Sciences","Social Sciences / Humanities"], prestige: "medium", features: ["Research opportunities","Strong Greek life / social scene"], athletics: "D1", description: "Nevada's flagship with growing research programs and a strong pre-med and engineering tradition." , test_optional: true, rotc: ["Army","AirForce"], auto_scholarship: "Automatic merit: $9K–$12K/yr for OOS students with 3.5+ GPA" },
+  { name: "University of Hawaii at Manoa", type: "Public", state: "HI", size: "large", setting: ["urban"], avg_gpa: 3.5, avg_sat: 1160, cost: 30000, majors: ["STEM","Business / Economics","Social Sciences / Humanities","Arts / Design / Film","Pre-Med / Health Sciences"], prestige: "medium-high", features: ["Research opportunities","Diversity & inclusion focus"], athletics: "D1", description: "Hawaii's flagship with world-class oceanography, astronomy, and Asian Pacific studies programs in Honolulu." , test_optional: true, rotc: ["Army","Navy","AirForce"], auto_scholarship: "Automatic merit: Manoa Excellence Scholarship for OOS with 3.5+ GPA" },
+  { name: "University of Texas at Austin", type: "Public", state: "TX", size: "very large", setting: ["urban"], avg_gpa: 3.8, avg_sat: 1340, cost: 40000, majors: ["STEM","Business / Economics","Law / Political Science","Social Sciences / Humanities","Arts / Design / Film"], prestige: "high", features: ["Research opportunities","Entrepreneurship / startup culture","Strong Greek life / social scene"], athletics: "D1", description: "A flagship powerhouse in the heart of Austin with top programs across business, engineering, and the arts." , test_optional: true, rotc: ["Army","Navy","AirForce"], auto_scholarship: "" },
+  { name: "Texas A&M University", type: "Public", state: "TX", size: "very large", setting: ["suburban","rural/college-town"], avg_gpa: 3.7, avg_sat: 1250, cost: 30000, majors: ["STEM","Business / Economics","Education","Social Sciences / Humanities"], prestige: "high", features: ["Research opportunities","Strong Greek life / social scene","Community service / civic focus"], athletics: "D1", description: "A beloved Lone Star institution with elite engineering, agriculture, and business programs and unmatched school spirit." , test_optional: false, rotc: ["Army","Navy","AirForce","CoastGuard"], auto_scholarship: "Automatic merit: OOS students with 3.5+ GPA may qualify for reduced OOS fees" },
+  { name: "Rice University", type: "Private", state: "TX", size: "small", setting: ["urban"], avg_gpa: 3.96, avg_sat: 1540, cost: 56000, majors: ["STEM","Social Sciences / Humanities","Arts / Design / Film","Business / Economics"], prestige: "elite", features: ["Research opportunities","Tight-knit / close community"], athletics: "D1", description: "One of America's finest research universities in Houston, elite academics, small classes, and no Greek life." , test_optional: true, rotc: ["Army","Navy","AirForce"], auto_scholarship: "" },
+  { name: "Southern Methodist University", type: "Private", state: "TX", size: "medium", setting: ["urban","suburban"], avg_gpa: 3.75, avg_sat: 1360, cost: 60000, majors: ["Business / Economics","Arts / Design / Film","STEM","Law / Political Science"], prestige: "medium-high", features: ["Strong Greek life / social scene","Entrepreneurship / startup culture","Arts & performance scene"], athletics: "D1", description: "Dallas' prestigious private university known for business, law, and performing arts with a vibrant social scene." , test_optional: true, rotc: ["Army","AirForce"], auto_scholarship: "Automatic merit: Presidential Scholarship ($28K–$32K/yr) for top OOS students" },
+  { name: "Texas Christian University", type: "Private", state: "TX", size: "medium", setting: ["suburban"], avg_gpa: 3.75, avg_sat: 1300, cost: 54000, majors: ["Business / Economics","Arts / Design / Film","Social Sciences / Humanities","Pre-Med / Health Sciences"], prestige: "medium-high", features: ["Religious / values-based environment","Strong Greek life / social scene","Arts & performance scene"], athletics: "D1", description: "A prestigious Fort Worth university with strong Greek life, top nursing, and a passionate Big 12 athletics culture." , test_optional: true, rotc: ["Army","AirForce"], auto_scholarship: "Automatic merit: $16K–$28K/yr for OOS students with 3.7+ GPA and strong test scores" },
+  { name: "Baylor University", type: "Private", state: "TX", size: "large", setting: ["suburban"], avg_gpa: 3.7, avg_sat: 1260, cost: 52000, majors: ["Pre-Med / Health Sciences","Business / Economics","Law / Political Science","Social Sciences / Humanities"], prestige: "medium-high", features: ["Religious / values-based environment","Strong Greek life / social scene","Research opportunities"], athletics: "D1", description: "A Baptist university in Waco with top-ranked law and medical programs and a strong campus faith community." , test_optional: true, rotc: ["Army","AirForce"], auto_scholarship: "Automatic merit: Regents Gold ($22K/yr) for OOS with 3.8+ GPA and 1350+ SAT" },
+  { name: "Trinity University", type: "Private", state: "TX", size: "small", setting: ["urban","suburban"], avg_gpa: 3.8, avg_sat: 1340, cost: 52000, majors: ["Social Sciences / Humanities","STEM","Business / Economics"], prestige: "medium-high", features: ["Tight-knit / close community","Research opportunities"], athletics: "D3", description: "A top liberal arts college in San Antonio known for generous merit scholarships and excellent pre-professional programs." , test_optional: true, rotc: ["Army"], auto_scholarship: "Automatic merit: up to $28K/yr for top OOS applicants" },
+  { name: "Texas Tech University", type: "Public", state: "TX", size: "large", setting: ["suburban"], avg_gpa: 3.5, avg_sat: 1160, cost: 26000, majors: ["STEM","Business / Economics","Education","Social Sciences / Humanities"], prestige: "medium", features: ["Strong Greek life / social scene","Research opportunities"], athletics: "D1", description: "Lubbock's large public university with strong business, engineering, and agricultural programs." , test_optional: true, rotc: ["Army","Navy","AirForce"], auto_scholarship: "Automatic merit: up to $8K/yr for OOS students with 3.5+ GPA" },
+  { name: "University of Houston", type: "Public", state: "TX", size: "large", setting: ["urban"], avg_gpa: 3.5, avg_sat: 1190, cost: 24000, majors: ["Business / Economics","STEM","Arts / Design / Film","Law / Political Science"], prestige: "medium", features: ["Entrepreneurship / startup culture","Diversity & inclusion focus"], athletics: "D1", description: "Houston's major public university with strong energy, law, and hospitality programs." , test_optional: true, rotc: ["Army","AirForce"], auto_scholarship: "Automatic merit: up to $8K/yr for OOS students with 3.5+ GPA" },
+  { name: "University of Florida", type: "Public", state: "FL", size: "very large", setting: ["suburban"], avg_gpa: 3.9, avg_sat: 1360, cost: 28000, majors: ["STEM","Business / Economics","Pre-Med / Health Sciences","Social Sciences / Humanities","Law / Political Science"], prestige: "high", features: ["Research opportunities","Strong Greek life / social scene"], athletics: "D1", description: "A top-10 public university in Gainesville with elite programs across engineering, business, and health sciences." , test_optional: true, rotc: ["Army","Navy","AirForce"], auto_scholarship: "" },
+  { name: "Florida State University", type: "Public", state: "FL", size: "very large", setting: ["urban"], avg_gpa: 3.75, avg_sat: 1280, cost: 22000, majors: ["Business / Economics","Arts / Design / Film","Social Sciences / Humanities","STEM","Pre-Med / Health Sciences"], prestige: "high", features: ["Strong Greek life / social scene","Arts & performance scene","Research opportunities"], athletics: "D1", description: "Tallahassee's flagship with excellent business, arts, and social sciences and a spirited Seminoles culture." , test_optional: true, rotc: ["Army","Navy","AirForce"], auto_scholarship: "Automatic merit: Freshman Honors Scholarship ($3K/yr) for OOS with 3.9+ GPA" },
+  { name: "University of Miami", type: "Private", state: "FL", size: "medium", setting: ["urban","suburban"], avg_gpa: 3.7, avg_sat: 1380, cost: 62000, majors: ["Business / Economics","Pre-Med / Health Sciences","Arts / Design / Film","STEM"], prestige: "high", features: ["Strong Greek life / social scene","Research opportunities"], athletics: "D1", description: "A prestigious research university in Coral Gables with strong pre-med, business, and music programs." , test_optional: true, rotc: ["Army","AirForce"], auto_scholarship: "Automatic merit: Provost Scholarship ($24K–$32K/yr) for top OOS applicants" },
+  { name: "University of Central Florida", type: "Public", state: "FL", size: "very large", setting: ["suburban"], avg_gpa: 3.7, avg_sat: 1250, cost: 22000, majors: ["STEM","Business / Economics","Arts / Design / Film","Social Sciences / Humanities"], prestige: "medium", features: ["Entrepreneurship / startup culture","Diversity & inclusion focus"], athletics: "D1", description: "One of the nation's largest universities in Orlando with strengths in engineering, hospitality, and digital media." , test_optional: true, rotc: ["Army","AirForce"], auto_scholarship: "Automatic merit: OOS students with 3.9+ GPA & 1360+ SAT qualify for Pegasus Scholarship" },
+  { name: "University of South Florida", type: "Public", state: "FL", size: "large", setting: ["urban","suburban"], avg_gpa: 3.6, avg_sat: 1210, cost: 22000, majors: ["STEM","Business / Economics","Pre-Med / Health Sciences","Social Sciences / Humanities"], prestige: "medium", features: ["Research opportunities","Diversity & inclusion focus"], athletics: "D1", description: "A growing research university in Tampa with strong health sciences, business, and engineering programs." , test_optional: true, rotc: ["Army","AirForce"], auto_scholarship: "Automatic merit: up to $8K/yr for OOS students with 3.5+ GPA" },
+  { name: "Rollins College", type: "Private", state: "FL", size: "small", setting: ["suburban"], avg_gpa: 3.65, avg_sat: 1270, cost: 54000, majors: ["Business / Economics","Social Sciences / Humanities","Arts / Design / Film","Pre-Med / Health Sciences"], prestige: "medium-high", features: ["Tight-knit / close community","Study abroad programs"], athletics: "D2", description: "A top Florida liberal arts college in Winter Park with outstanding business and international programs." , test_optional: true, rotc: ["Army"], auto_scholarship: "Automatic merit: $18K–$25K/yr for OOS students with strong academic record" },
+  { name: "Ringling College of Art and Design", type: "Private", state: "FL", size: "small", setting: ["suburban"], avg_gpa: 3.2, avg_sat: 1100, cost: 50000, majors: ["Arts / Design / Film"], prestige: "medium-high", features: ["Arts & performance scene","Internship connections"], athletics: "no_ncaa", description: "A top Florida design school in Sarasota with acclaimed animation, illustration, and game design programs." , test_optional: true, rotc: [], auto_scholarship: "" },
+  { name: "University of Georgia", type: "Public", state: "GA", size: "very large", setting: ["suburban","rural/college-town"], avg_gpa: 3.85, avg_sat: 1310, cost: 30000, majors: ["Business / Economics","STEM","Social Sciences / Humanities","Pre-Med / Health Sciences","Law / Political Science"], prestige: "high", features: ["Strong Greek life / social scene","Research opportunities"], athletics: "D1", description: "Georgia's flagship in Athens with elite business, law, and journalism programs and legendary Bulldog spirit." , test_optional: true, rotc: ["Army","Navy","AirForce"], auto_scholarship: "" },
+  { name: "Georgia Tech", type: "Public", state: "GA", size: "large", setting: ["urban"], avg_gpa: 4.05, avg_sat: 1470, cost: 33000, majors: ["STEM","Business / Economics"], prestige: "high", features: ["Research opportunities","Entrepreneurship / startup culture"], athletics: "D1", description: "One of the nation's top engineering and technology schools in the heart of Atlanta." , test_optional: false, rotc: ["Army","Navy","AirForce"], auto_scholarship: "" },
+  { name: "Emory University", type: "Private", state: "GA", size: "medium", setting: ["suburban"], avg_gpa: 3.9, avg_sat: 1470, cost: 58000, majors: ["Pre-Med / Health Sciences","Business / Economics","Social Sciences / Humanities","Law / Political Science"], prestige: "high", features: ["Research opportunities","Community service / civic focus"], athletics: "D3", description: "A prestigious Atlanta research university renowned for pre-med, public health, and Goizueta Business School." , test_optional: true, rotc: ["Army","AirForce"], auto_scholarship: "" },
+  { name: "Spelman College", type: "Private", state: "GA", size: "small", setting: ["urban"], avg_gpa: 3.75, avg_sat: 1200, cost: 30000, majors: ["Pre-Med / Health Sciences","STEM","Social Sciences / Humanities","Arts / Design / Film"], prestige: "high", features: ["Tight-knit / close community","Community service / civic focus","Research opportunities"], athletics: "D3", description: "The nation's top HBCU, an elite women's college in Atlanta with exceptional pre-med and social sciences." , test_optional: true, rotc: ["Army","AirForce"], auto_scholarship: "" },
+  { name: "Morehouse College", type: "Private", state: "GA", size: "small", setting: ["urban"], avg_gpa: 3.5, avg_sat: 1170, cost: 30000, majors: ["Business / Economics","STEM","Social Sciences / Humanities","Pre-Med / Health Sciences"], prestige: "high", features: ["Tight-knit / close community","Community service / civic focus"], athletics: "D2", description: "The premier HBCU for men, producing extraordinary leaders including MLK Jr. and many of America's top professionals." , test_optional: true, rotc: ["Army","AirForce","Navy"], auto_scholarship: "" },
+  { name: "Savannah College of Art and Design", type: "Private", state: "GA", size: "large", setting: ["urban"], avg_gpa: 3.3, avg_sat: 1130, cost: 38000, majors: ["Arts / Design / Film"], prestige: "medium-high", features: ["Arts & performance scene","Entrepreneurship / startup culture"], athletics: "no_ncaa", description: "SCAD offers the broadest range of art and design degrees in a historic Georgia city with industry-connected programs." , test_optional: true, rotc: [], auto_scholarship: "" },
+  { name: "Vanderbilt University", type: "Private", state: "TN", size: "medium", setting: ["urban"], avg_gpa: 3.95, avg_sat: 1520, cost: 60000, majors: ["Pre-Med / Health Sciences","STEM","Social Sciences / Humanities","Business / Economics","Law / Political Science","Education"], prestige: "elite", features: ["Research opportunities","Strong Greek life / social scene","Tight-knit / close community"], athletics: "D1", description: "Nashville's elite private university combining Ivy-level academics with Southern hospitality and a vibrant music scene." , test_optional: true, rotc: ["Army","Navy","AirForce"], auto_scholarship: "" },
+  { name: "University of Tennessee", type: "Public", state: "TN", size: "large", setting: ["urban","suburban"], avg_gpa: 3.65, avg_sat: 1220, cost: 30000, majors: ["STEM","Business / Economics","Social Sciences / Humanities","Education"], prestige: "medium", features: ["Strong Greek life / social scene","Research opportunities"], athletics: "D1", description: "Knoxville's flagship with strong business, engineering, and an iconic Volunteers sports culture." , test_optional: true, rotc: ["Army","AirForce"], auto_scholarship: "Automatic merit: UT Promise & Chancellor's Honors for OOS with 3.8+ GPA" },
+  { name: "Belmont University", type: "Private", state: "TN", size: "medium", setting: ["urban"], avg_gpa: 3.7, avg_sat: 1240, cost: 38000, majors: ["Business / Economics","Arts / Design / Film","Pre-Med / Health Sciences","Social Sciences / Humanities"], prestige: "medium-high", features: ["Arts & performance scene","Religious / values-based environment","Entrepreneurship / startup culture"], athletics: "D1", description: "Nashville's university of the arts and commerce, ideal for aspiring musicians, producers, and business minds." , test_optional: true, rotc: ["Army"], auto_scholarship: "Automatic merit: President's Scholarship ($18K/yr) for OOS with 3.8+ GPA" },
+  { name: "Tulane University", type: "Private", state: "LA", size: "medium", setting: ["urban","suburban"], avg_gpa: 3.6, avg_sat: 1380, cost: 62000, majors: ["Business / Economics","Pre-Med / Health Sciences","Social Sciences / Humanities","Law / Political Science"], prestige: "high", features: ["Strong Greek life / social scene","Community service / civic focus","Study abroad programs"], athletics: "D1", description: "A prestigious university in the heart of New Orleans with generous merit scholarships and a rich culture." , test_optional: true, rotc: ["Army","Navy","AirForce"], auto_scholarship: "Automatic merit: Dean's Honor ($20K–$25K/yr) for OOS with 3.7+ GPA" },
+  { name: "University of Alabama", type: "Public", state: "AL", size: "large", setting: ["suburban","rural/college-town"], avg_gpa: 3.6, avg_sat: 1180, cost: 30000, majors: ["Business / Economics","STEM","Law / Political Science","Social Sciences / Humanities"], prestige: "medium", features: ["Strong Greek life / social scene","Research opportunities"], athletics: "D1", description: "Tuscaloosa's flagship with top engineering, law, and business programs plus massive merit scholarships for high achievers." , test_optional: true, rotc: ["Army","Navy","AirForce"], auto_scholarship: "Automatic merit: Presidential ($26K/yr), Computer-Based ($23K), Capstone ($16K) — some of the best OOS merit in the country" },
+  { name: "Auburn University", type: "Public", state: "AL", size: "large", setting: ["suburban","rural/college-town"], avg_gpa: 3.7, avg_sat: 1230, cost: 30000, majors: ["STEM","Business / Economics","Education","Social Sciences / Humanities"], prestige: "medium-high", features: ["Strong Greek life / social scene","Research opportunities"], athletics: "D1", description: "Alabama's beloved engineering school with a warm, spirited college-town culture and loyal alumni network." , test_optional: true, rotc: ["Army","AirForce"], auto_scholarship: "Automatic merit: $10K–$20K/yr for OOS students with 3.5+ GPA" },
+  { name: "University of South Carolina", type: "Public", state: "SC", size: "large", setting: ["urban"], avg_gpa: 3.7, avg_sat: 1240, cost: 33000, majors: ["Business / Economics","STEM","Social Sciences / Humanities","Pre-Med / Health Sciences"], prestige: "medium", features: ["Strong Greek life / social scene","Research opportunities"], athletics: "D1", description: "Columbia's flagship with top-ranked international business and journalism schools and strong Gamecock spirit." , test_optional: true, rotc: ["Army","AirForce"], auto_scholarship: "Automatic merit: Carolina Scholar ($13K–$24K/yr) for OOS with 3.5+ GPA" },
+  { name: "Clemson University", type: "Public", state: "SC", size: "large", setting: ["rural/college-town"], avg_gpa: 3.85, avg_sat: 1290, cost: 35000, majors: ["STEM","Business / Economics","Education","Social Sciences / Humanities"], prestige: "medium-high", features: ["Strong Greek life / social scene","Research opportunities"], athletics: "D1", description: "A beloved Upstate SC school with elite engineering, architecture, and a fiercely passionate Tigers community." , test_optional: true, rotc: ["Army","AirForce"], auto_scholarship: "Automatic merit: up to $14K/yr for OOS students with 3.75+ GPA" },
+  { name: "Davidson College", type: "Private", state: "NC", size: "small", setting: ["suburban"], avg_gpa: 3.88, avg_sat: 1390, cost: 58000, majors: ["Social Sciences / Humanities","STEM","Arts / Design / Film"], prestige: "high", features: ["Tight-knit / close community","Community service / civic focus","Research opportunities"], athletics: "D1", description: "A top Presbyterian liberal arts college near Charlotte, renowned for honor code, strong community, and Stephen Curry." , test_optional: true, rotc: ["Army"], auto_scholarship: "" },
+  { name: "University of North Carolina Chapel Hill", type: "Public", state: "NC", size: "large", setting: ["suburban","urban"], avg_gpa: 3.9, avg_sat: 1370, cost: 37000, majors: ["Pre-Med / Health Sciences","Business / Economics","Law / Political Science","Social Sciences / Humanities","STEM"], prestige: "high", features: ["Research opportunities","Strong Greek life / social scene"], athletics: "D1", description: "A flagship public research university with elite medical, pharmacy, and journalism programs in charming Chapel Hill." , test_optional: true, rotc: ["Army","Navy","AirForce"], auto_scholarship: "" },
+  { name: "Duke University", type: "Private", state: "NC", size: "medium", setting: ["suburban"], avg_gpa: 3.94, avg_sat: 1520, cost: 62000, majors: ["Pre-Med / Health Sciences","STEM","Business / Economics","Law / Political Science","Social Sciences / Humanities"], prestige: "elite", features: ["Research opportunities","Strong Greek life / social scene"], athletics: "D1", description: "One of America's elite universities, a perfect blend of academic rigor and storied Blue Devils athletics." , test_optional: true, rotc: ["Army","Navy","AirForce"], auto_scholarship: "" },
+  { name: "Wake Forest University", type: "Private", state: "NC", size: "medium", setting: ["suburban"], avg_gpa: 3.9, avg_sat: 1440, cost: 62000, majors: ["Business / Economics","Pre-Med / Health Sciences","Law / Political Science","Social Sciences / Humanities"], prestige: "high", features: ["Research opportunities","Tight-knit / close community","Strong Greek life / social scene"], athletics: "D1", description: "An elite Winston-Salem university known for personalized education, pre-med, and strong business programs." , test_optional: true, rotc: ["Army","AirForce"], auto_scholarship: "Automatic merit: $20K–$30K/yr for top OOS students" },
+  { name: "Elon University", type: "Private", state: "NC", size: "medium", setting: ["suburban","rural/college-town"], avg_gpa: 3.75, avg_sat: 1250, cost: 46000, majors: ["Business / Economics","Arts / Design / Film","Social Sciences / Humanities","Education"], prestige: "medium-high", features: ["Study abroad programs","Internship connections","Tight-knit / close community"], athletics: "D1", description: "Celebrated for experiential learning, study abroad, and outstanding communications programs." , test_optional: true, rotc: ["Army","AirForce"], auto_scholarship: "Automatic merit: Elon College Fellows ($15K+/yr) for strong OOS students" },
+  { name: "Howard University", type: "Private", state: "DC", size: "medium", setting: ["urban"], avg_gpa: 3.6, avg_sat: 1200, cost: 30000, majors: ["Pre-Med / Health Sciences","Business / Economics","Law / Political Science","Social Sciences / Humanities","Arts / Design / Film"], prestige: "high", features: ["Community service / civic focus","Diversity & inclusion focus","Research opportunities"], athletics: "D1", description: "The flagship HBCU in Washington DC, producing generations of leaders across medicine, law, business, and the arts." , test_optional: true, rotc: ["Army","Navy","AirForce"], auto_scholarship: "" },
+  { name: "University of Virginia", type: "Public", state: "VA", size: "large", setting: ["suburban","rural/college-town"], avg_gpa: 3.9, avg_sat: 1410, cost: 36000, majors: ["Business / Economics","Law / Political Science","Social Sciences / Humanities","Pre-Med / Health Sciences","STEM"], prestige: "high", features: ["Research opportunities","Strong Greek life / social scene","Tight-knit / close community"], athletics: "D1", description: "Mr. Jefferson's university, elite law, business, and architecture programs in historic Charlottesville." , test_optional: true, rotc: ["Army","Navy","AirForce"], auto_scholarship: "" },
+  { name: "Virginia Tech", type: "Public", state: "VA", size: "large", setting: ["rural/college-town"], avg_gpa: 3.8, avg_sat: 1310, cost: 32000, majors: ["STEM","Business / Economics","Education","Social Sciences / Humanities"], prestige: "medium-high", features: ["Research opportunities","Strong Greek life / social scene"], athletics: "D1", description: "Blacksburg's engineering powerhouse with top architecture, business, and passionate Hokie pride." , test_optional: true, rotc: ["Army","Navy","AirForce"], auto_scholarship: "" },
+  { name: "William & Mary", type: "Public", state: "VA", size: "medium", setting: ["suburban","rural/college-town"], avg_gpa: 3.9, avg_sat: 1390, cost: 35000, majors: ["Social Sciences / Humanities","Business / Economics","STEM","Law / Political Science"], prestige: "high", features: ["Research opportunities","Tight-knit / close community"], athletics: "D1", description: "America's second-oldest university with exceptional liberal arts, law, and business programs in colonial Williamsburg." , test_optional: true, rotc: ["Army","Navy","AirForce"], auto_scholarship: "" },
+  { name: "Georgetown University", type: "Private", state: "DC", size: "medium", setting: ["urban"], avg_gpa: 3.9, avg_sat: 1490, cost: 64000, majors: ["Law / Political Science","Business / Economics","Social Sciences / Humanities","Pre-Med / Health Sciences"], prestige: "elite", features: ["Research opportunities","Internship connections","Tight-knit / close community"], athletics: "D1", description: "A prestigious Jesuit university in DC, the premier destination for aspiring diplomats, lawyers, and political leaders." , test_optional: true, rotc: ["Army","Navy","AirForce"], auto_scholarship: "" },
+  { name: "George Washington University", type: "Private", state: "DC", size: "medium", setting: ["urban"], avg_gpa: 3.75, avg_sat: 1380, cost: 62000, majors: ["Law / Political Science","Business / Economics","Social Sciences / Humanities","Pre-Med / Health Sciences"], prestige: "high", features: ["Internship connections","Community service / civic focus","Research opportunities"], athletics: "D1", description: "Steps from the White House, GWU offers unmatched access to government, media, and policy careers." , test_optional: true, rotc: ["Army","Navy","AirForce"], auto_scholarship: "" },
+  { name: "American University", type: "Private", state: "DC", size: "medium", setting: ["urban"], avg_gpa: 3.7, avg_sat: 1310, cost: 58000, majors: ["Law / Political Science","Business / Economics","Social Sciences / Humanities","Arts / Design / Film"], prestige: "medium-high", features: ["Internship connections","Community service / civic focus"], athletics: "D1", description: "A DC institution with elite international relations, law, and communications programs." , test_optional: true, rotc: ["Army","AirForce"], auto_scholarship: "" },
+  { name: "Johns Hopkins University", type: "Private", state: "MD", size: "medium", setting: ["urban"], avg_gpa: 3.9, avg_sat: 1530, cost: 62000, majors: ["Pre-Med / Health Sciences","STEM","Social Sciences / Humanities","Business / Economics"], prestige: "elite", features: ["Research opportunities","Tight-knit / close community"], athletics: "D3", description: "The world's leading research university for pre-med and biomedical sciences in Baltimore." , test_optional: true, rotc: ["Army","Navy","AirForce"], auto_scholarship: "" },
+  { name: "University of Maryland", type: "Public", state: "MD", size: "very large", setting: ["suburban"], avg_gpa: 3.85, avg_sat: 1390, cost: 35000, majors: ["STEM","Business / Economics","Social Sciences / Humanities","Arts / Design / Film","Law / Political Science"], prestige: "high", features: ["Research opportunities","Entrepreneurship / startup culture"], athletics: "D1", description: "College Park's flagship combines top engineering and business with proximity to DC government and tech sectors." , test_optional: true, rotc: ["Army","Navy","AirForce"], auto_scholarship: "" },
+  { name: "University of Pittsburgh", type: "Public", state: "PA", size: "large", setting: ["urban"], avg_gpa: 3.75, avg_sat: 1330, cost: 35000, majors: ["Pre-Med / Health Sciences","STEM","Business / Economics","Social Sciences / Humanities","Law / Political Science"], prestige: "medium-high", features: ["Research opportunities","Community service / civic focus"], athletics: "D1", description: "A major research university in Pittsburgh with excellent medical, pharmacy, and engineering programs." , test_optional: true, rotc: ["Army","Navy","AirForce"], auto_scholarship: "Automatic merit: Chancellor's Scholarship ($15K–$20K/yr) for OOS with 3.75+ GPA" },
+  { name: "Penn State University Park", type: "Public", state: "PA", size: "very large", setting: ["rural/college-town"], avg_gpa: 3.65, avg_sat: 1260, cost: 35000, majors: ["STEM","Business / Economics","Education","Social Sciences / Humanities"], prestige: "medium-high", features: ["Strong Greek life / social scene","Research opportunities"], athletics: "D1", description: "A beloved Big Ten school in Happy Valley with top engineering, business, and agricultural programs." , test_optional: true, rotc: ["Army","Navy","AirForce"], auto_scholarship: "" },
+  { name: "Carnegie Mellon University", type: "Private", state: "PA", size: "medium", setting: ["urban"], avg_gpa: 3.9, avg_sat: 1530, cost: 62000, majors: ["STEM","Arts / Design / Film","Business / Economics","Social Sciences / Humanities"], prestige: "elite", features: ["Research opportunities","Entrepreneurship / startup culture","Arts & performance scene"], athletics: "D3", description: "A top Pittsburgh research university with the #1 computer science and drama programs in the world." , test_optional: true, rotc: ["Army","Navy","AirForce"], auto_scholarship: "" },
+  { name: "Villanova University", type: "Private", state: "PA", size: "medium", setting: ["suburban"], avg_gpa: 3.9, avg_sat: 1400, cost: 62000, majors: ["Business / Economics","STEM","Law / Political Science","Pre-Med / Health Sciences"], prestige: "high", features: ["Religious / values-based environment","Strong Greek life / social scene","Community service / civic focus"], athletics: "D1", description: "A top Augustinian university outside Philadelphia with elite business and engineering programs and a spirited campus." , test_optional: true, rotc: ["Army","Navy","AirForce"], auto_scholarship: "" },
+  { name: "University of Notre Dame", type: "Private", state: "IN", size: "large", setting: ["suburban"], avg_gpa: 3.9, avg_sat: 1490, cost: 60000, majors: ["Business / Economics","Pre-Med / Health Sciences","STEM","Law / Political Science","Social Sciences / Humanities"], prestige: "elite", features: ["Religious / values-based environment","Strong Greek life / social scene","Research opportunities"], athletics: "D1", description: "One of America's finest universities, elite academics, a passionate Catholic identity, and legendary Fighting Irish football." , test_optional: true, rotc: ["Army","Navy","AirForce"], auto_scholarship: "" },
+  { name: "Harvard University", type: "Private", state: "MA", size: "medium", setting: ["urban"], avg_gpa: 3.96, avg_sat: 1560, cost: 60000, majors: ["Social Sciences / Humanities","STEM","Business / Economics","Pre-Med / Health Sciences","Law / Political Science"], prestige: "elite", features: ["Research opportunities","Tight-knit / close community"], athletics: "D1", description: "The world's most recognizable university, extraordinary academics and an unmatched alumni network in Cambridge." , test_optional: true, rotc: ["Army","Navy","AirForce"], auto_scholarship: "" },
+  { name: "MIT", type: "Private", state: "MA", size: "medium", setting: ["urban"], avg_gpa: 3.97, avg_sat: 1570, cost: 58000, majors: ["STEM","Business / Economics"], prestige: "elite", features: ["Research opportunities","Entrepreneurship / startup culture"], athletics: "D3", description: "The global leader in science, technology, and engineering education in Cambridge, Massachusetts." , test_optional: true, rotc: ["Army","Navy","AirForce"], auto_scholarship: "" },
+  { name: "Yale University", type: "Private", state: "CT", size: "medium", setting: ["urban"], avg_gpa: 3.95, avg_sat: 1555, cost: 62000, majors: ["Social Sciences / Humanities","STEM","Law / Political Science","Arts / Design / Film","Pre-Med / Health Sciences"], prestige: "elite", features: ["Research opportunities","Arts & performance scene","Tight-knit / close community"], athletics: "D1", description: "An Ivy League powerhouse with unmatched strengths in law, fine arts, drama, and liberal learning." , test_optional: true, rotc: ["Army","Navy","AirForce"], auto_scholarship: "" },
+  { name: "Princeton University", type: "Private", state: "NJ", size: "medium", setting: ["suburban"], avg_gpa: 3.95, avg_sat: 1550, cost: 58000, majors: ["STEM","Social Sciences / Humanities","Business / Economics","Law / Political Science"], prestige: "elite", features: ["Research opportunities","Tight-knit / close community"], athletics: "D1", description: "An Ivy League legend in New Jersey, elite research, residential college system, and no professional schools." , test_optional: true, rotc: ["Army","Navy","AirForce"], auto_scholarship: "" },
+  { name: "Columbia University", type: "Private", state: "NY", size: "medium", setting: ["urban"], avg_gpa: 3.95, avg_sat: 1545, cost: 65000, majors: ["STEM","Social Sciences / Humanities","Business / Economics","Law / Political Science","Arts / Design / Film"], prestige: "elite", features: ["Research opportunities","Internship connections","Arts & performance scene"], athletics: "D1", description: "An Ivy League university in the heart of Manhattan, offering unmatched access to global opportunities." , test_optional: true, rotc: ["Army","Navy","AirForce"], auto_scholarship: "" },
+  { name: "University of Pennsylvania", type: "Private", state: "PA", size: "medium", setting: ["urban"], avg_gpa: 3.95, avg_sat: 1540, cost: 62000, majors: ["Business / Economics","Pre-Med / Health Sciences","STEM","Law / Political Science","Social Sciences / Humanities"], prestige: "elite", features: ["Research opportunities","Entrepreneurship / startup culture","Strong Greek life / social scene"], athletics: "D1", description: "Penn's Wharton School is the world's top undergraduate business program, paired with elite pre-med and liberal arts." , test_optional: true, rotc: ["Army","Navy","AirForce"], auto_scholarship: "" },
+  { name: "Dartmouth College", type: "Private", state: "NH", size: "small", setting: ["rural/college-town"], avg_gpa: 3.94, avg_sat: 1530, cost: 62000, majors: ["Social Sciences / Humanities","STEM","Business / Economics","Law / Political Science"], prestige: "elite", features: ["Research opportunities","Tight-knit / close community","Strong Greek life / social scene"], athletics: "D1", description: "A distinctive Ivy in Hanover, small, intimate, and surrounded by nature with an intensely loyal community." , test_optional: true, rotc: ["Army","Navy","AirForce"], auto_scholarship: "" },
+  { name: "Brown University", type: "Private", state: "RI", size: "medium", setting: ["urban"], avg_gpa: 3.94, avg_sat: 1530, cost: 62000, majors: ["Social Sciences / Humanities","STEM","Pre-Med / Health Sciences","Arts / Design / Film"], prestige: "elite", features: ["Research opportunities","Tight-knit / close community","Arts & performance scene"], athletics: "D1", description: "The most flexible Ivy, Brown's open curriculum lets students design their own academic path in Providence." , test_optional: true, rotc: ["Army","Navy","AirForce"], auto_scholarship: "" },
+  { name: "Cornell University", type: "Private", state: "NY", size: "large", setting: ["rural/college-town"], avg_gpa: 3.9, avg_sat: 1500, cost: 62000, majors: ["STEM","Business / Economics","Pre-Med / Health Sciences","Social Sciences / Humanities","Law / Political Science","Arts / Design / Film"], prestige: "elite", features: ["Research opportunities","Strong Greek life / social scene"], athletics: "D1", description: "The broadest Ivy League school, Cornell spans engineering, business, hotel management, agriculture, and more in Ithaca." , test_optional: true, rotc: ["Army","Navy","AirForce"], auto_scholarship: "" },
+  { name: "Northwestern University", type: "Private", state: "IL", size: "medium", setting: ["suburban"], avg_gpa: 3.95, avg_sat: 1540, cost: 63000, majors: ["STEM","Business / Economics","Social Sciences / Humanities","Arts / Design / Film","Law / Political Science","Pre-Med / Health Sciences"], prestige: "elite", features: ["Research opportunities","Arts & performance scene","Entrepreneurship / startup culture"], athletics: "D1", description: "An elite Chicago-area research university with the top journalism school and exceptional programs across every field." , test_optional: true, rotc: ["Army","Navy","AirForce"], auto_scholarship: "" },
+  { name: "University of Chicago", type: "Private", state: "IL", size: "medium", setting: ["urban"], avg_gpa: 3.95, avg_sat: 1545, cost: 63000, majors: ["Social Sciences / Humanities","STEM","Business / Economics","Law / Political Science"], prestige: "elite", features: ["Research opportunities","Tight-knit / close community"], athletics: "D3", description: "One of the world's great intellectual institutions, rigorous Core curriculum and the birthplace of modern economics." , test_optional: true, rotc: ["Army","Navy","AirForce"], auto_scholarship: "" },
+  { name: "Tufts University", type: "Private", state: "MA", size: "medium", setting: ["suburban"], avg_gpa: 3.9, avg_sat: 1490, cost: 62000, majors: ["Social Sciences / Humanities","Pre-Med / Health Sciences","STEM","Law / Political Science","Arts / Design / Film"], prestige: "high", features: ["Research opportunities","Community service / civic focus","Study abroad programs"], athletics: "D3", description: "A Boston-area research university known for exceptional international relations, diplomacy, and pre-med programs." , test_optional: true, rotc: ["Army","AirForce"], auto_scholarship: "" },
+  { name: "Boston College", type: "Private", state: "MA", size: "medium", setting: ["suburban"], avg_gpa: 3.85, avg_sat: 1440, cost: 62000, majors: ["Business / Economics","Social Sciences / Humanities","Pre-Med / Health Sciences","Law / Political Science","STEM"], prestige: "high", features: ["Religious / values-based environment","Strong Greek life / social scene","Community service / civic focus"], athletics: "D1", description: "A prestigious Jesuit university in Chestnut Hill with elite business, pre-law, and education programs." , test_optional: true, rotc: ["Army","AirForce"], auto_scholarship: "" },
+  { name: "Boston University", type: "Private", state: "MA", size: "large", setting: ["urban"], avg_gpa: 3.8, avg_sat: 1400, cost: 63000, majors: ["STEM","Business / Economics","Pre-Med / Health Sciences","Social Sciences / Humanities","Law / Political Science"], prestige: "high", features: ["Research opportunities","Community service / civic focus","Internship connections"], athletics: "D1", description: "A large vibrant urban research university on the Charles River with exceptional pre-med and communications programs." , test_optional: true, rotc: ["Army","Navy","AirForce"], auto_scholarship: "" },
+  { name: "Northeastern University", type: "Private", state: "MA", size: "large", setting: ["urban"], avg_gpa: 3.9, avg_sat: 1480, cost: 63000, majors: ["STEM","Business / Economics","Social Sciences / Humanities","Pre-Med / Health Sciences"], prestige: "high", features: ["Entrepreneurship / startup culture","Internship connections","Research opportunities"], athletics: "D1", description: "Famous for its co-op program, students alternate between studies and real-world jobs at top companies worldwide." , test_optional: true, rotc: ["Army","Navy","AirForce"], auto_scholarship: "" },
+  { name: "Williams College", type: "Private", state: "MA", size: "small", setting: ["rural/college-town"], avg_gpa: 3.93, avg_sat: 1510, cost: 62000, majors: ["Social Sciences / Humanities","STEM","Arts / Design / Film"], prestige: "elite", features: ["Research opportunities","Tight-knit / close community"], athletics: "D3", description: "Consistently ranked the #1 liberal arts college, exceptional teaching, small seminars, and stunning Berkshire campus." , test_optional: true, rotc: ["Army"], auto_scholarship: "" },
+  { name: "Amherst College", type: "Private", state: "MA", size: "small", setting: ["rural/college-town"], avg_gpa: 3.93, avg_sat: 1505, cost: 62000, majors: ["Social Sciences / Humanities","STEM","Arts / Design / Film"], prestige: "elite", features: ["Research opportunities","Tight-knit / close community"], athletics: "D3", description: "An elite liberal arts college in western Massachusetts, no required courses, extraordinary faculty, and generous financial aid." , test_optional: true, rotc: ["Army","AirForce"], auto_scholarship: "" },
+  { name: "Wellesley College", type: "Private", state: "MA", size: "small", setting: ["suburban"], avg_gpa: 3.92, avg_sat: 1470, cost: 62000, majors: ["Social Sciences / Humanities","STEM","Arts / Design / Film","Business / Economics"], prestige: "high", features: ["Research opportunities","Tight-knit / close community"], athletics: "D3", description: "A top women's college outside Boston known for producing leaders in government, business, and science." , test_optional: true, rotc: ["Army","AirForce"], auto_scholarship: "" },
+  { name: "Smith College", type: "Private", state: "MA", size: "small", setting: ["urban"], avg_gpa: 3.85, avg_sat: 1380, cost: 62000, majors: ["Social Sciences / Humanities","STEM","Arts / Design / Film"], prestige: "high", features: ["Research opportunities","Tight-knit / close community","Community service / civic focus"], athletics: "D3", description: "A top women's liberal arts college in Northampton, MA with exceptional research and social justice traditions." , test_optional: true, rotc: ["Army"], auto_scholarship: "" },
+  { name: "Middlebury College", type: "Private", state: "VT", size: "small", setting: ["rural/college-town"], avg_gpa: 3.9, avg_sat: 1450, cost: 62000, majors: ["Social Sciences / Humanities","Arts / Design / Film","STEM"], prestige: "high", features: ["Study abroad programs","Tight-knit / close community"], athletics: "D3", description: "A top liberal arts school in Vermont's Green Mountains, world-famous for language study and environmental programs." , test_optional: true, rotc: ["Army"], auto_scholarship: "" },
+  { name: "Bowdoin College", type: "Private", state: "ME", size: "small", setting: ["suburban"], avg_gpa: 3.92, avg_sat: 1490, cost: 62000, majors: ["Social Sciences / Humanities","STEM","Arts / Design / Film"], prestige: "high", features: ["Tight-knit / close community","Research opportunities"], athletics: "D3", description: "A top Maine liberal arts college renowned for environmental science, government, and outstanding student outcomes." , test_optional: true, rotc: ["Army"], auto_scholarship: "" },
+  { name: "Colby College", type: "Private", state: "ME", size: "small", setting: ["rural/college-town"], avg_gpa: 3.85, avg_sat: 1420, cost: 62000, majors: ["Social Sciences / Humanities","STEM","Arts / Design / Film"], prestige: "high", features: ["Tight-knit / close community","Research opportunities","Study abroad programs"], athletics: "D3", description: "A beautiful Maine liberal arts college with growing research programs and an idyllic campus in Waterville." , test_optional: true, rotc: ["Army"], auto_scholarship: "" },
+  { name: "Bates College", type: "Private", state: "ME", size: "small", setting: ["urban"], avg_gpa: 3.85, avg_sat: 1390, cost: 62000, majors: ["Social Sciences / Humanities","STEM","Arts / Design / Film"], prestige: "high", features: ["Tight-knit / close community","Community service / civic focus","Research opportunities"], athletics: "D3", description: "A top Maine liberal arts college in Lewiston known for social justice, strong sciences, and an intimate community." , test_optional: true, rotc: ["Army"], auto_scholarship: "" },
+  { name: "Wesleyan University", type: "Private", state: "CT", size: "small", setting: ["suburban"], avg_gpa: 3.9, avg_sat: 1470, cost: 62000, majors: ["Social Sciences / Humanities","Arts / Design / Film","STEM"], prestige: "high", features: ["Arts & performance scene","Tight-knit / close community","Research opportunities"], athletics: "D3", description: "A top Connecticut liberal arts university known for film, music, social justice, and a fiercely creative community." , test_optional: true, rotc: ["Army"], auto_scholarship: "" },
+  { name: "Vassar College", type: "Private", state: "NY", size: "small", setting: ["suburban"], avg_gpa: 3.9, avg_sat: 1460, cost: 62000, majors: ["Social Sciences / Humanities","Arts / Design / Film","STEM"], prestige: "high", features: ["Arts & performance scene","Tight-knit / close community"], athletics: "D3", description: "A beautiful Hudson Valley liberal arts college with excellent arts, sciences, and humanities." , test_optional: true, rotc: ["Army"], auto_scholarship: "" },
+  { name: "Barnard College", type: "Private", state: "NY", size: "small", setting: ["urban"], avg_gpa: 3.92, avg_sat: 1470, cost: 64000, majors: ["Social Sciences / Humanities","STEM","Arts / Design / Film"], prestige: "high", features: ["Research opportunities","Tight-knit / close community","Internship connections"], athletics: "D1", description: "A top women's college affiliated with Columbia University, elite academics with full NYC and Columbia access." , test_optional: true, rotc: ["Army","Navy","AirForce"], auto_scholarship: "" },
+  { name: "NYU", type: "Private", state: "NY", size: "large", setting: ["urban"], avg_gpa: 3.7, avg_sat: 1440, cost: 65000, majors: ["Business / Economics","Arts / Design / Film","Social Sciences / Humanities","Law / Political Science","Pre-Med / Health Sciences"], prestige: "high", features: ["Arts & performance scene","Entrepreneurship / startup culture","Internship connections"], athletics: "D3", description: "New York City is your campus, NYU offers incredible arts, business, and pre-law programs at the center of the world." , test_optional: true, rotc: ["Army","Navy","AirForce"], auto_scholarship: "" },
+  { name: "Fordham University", type: "Private", state: "NY", size: "medium", setting: ["urban"], avg_gpa: 3.7, avg_sat: 1330, cost: 60000, majors: ["Business / Economics","Law / Political Science","Social Sciences / Humanities","Arts / Design / Film"], prestige: "medium-high", features: ["Religious / values-based environment","Internship connections","Community service / civic focus"], athletics: "D1", description: "A Jesuit university in New York City with unrivaled access to internships in business, media, and law." , test_optional: true, rotc: ["Army","AirForce"], auto_scholarship: "" },
+  { name: "Syracuse University", type: "Private", state: "NY", size: "large", setting: ["urban"], avg_gpa: 3.7, avg_sat: 1290, cost: 60000, majors: ["Arts / Design / Film","Business / Economics","Social Sciences / Humanities","STEM","Law / Political Science"], prestige: "medium-high", features: ["Arts & performance scene","Strong Greek life / social scene","Research opportunities"], athletics: "D1", description: "Home to one of America's top journalism and communications schools with a vibrant campus in Upstate NY." , test_optional: true, rotc: ["Army","Navy","AirForce"], auto_scholarship: "" },
+  { name: "University of Rochester", type: "Private", state: "NY", size: "medium", setting: ["suburban"], avg_gpa: 3.85, avg_sat: 1460, cost: 62000, majors: ["STEM","Pre-Med / Health Sciences","Business / Economics","Arts / Design / Film","Social Sciences / Humanities"], prestige: "high", features: ["Research opportunities","Arts & performance scene","Tight-knit / close community"], athletics: "D3", description: "A top research university in Rochester with elite medical, music, and optical engineering programs." , test_optional: true, rotc: ["Army","AirForce"], auto_scholarship: "" },
+  { name: "Rensselaer Polytechnic Institute", type: "Private", state: "NY", size: "medium", setting: ["suburban"], avg_gpa: 3.85, avg_sat: 1440, cost: 62000, majors: ["STEM","Business / Economics","Arts / Design / Film"], prestige: "high", features: ["Research opportunities","Entrepreneurship / startup culture"], athletics: "D3", description: "Troy's premier engineering and science school with deep industry connections and strong research programs." , test_optional: true, rotc: ["Army","AirForce"], auto_scholarship: "Automatic merit: RPI Medal ($20K–$28K/yr) for OOS top students" },
+  { name: "Colgate University", type: "Private", state: "NY", size: "small", setting: ["rural/college-town"], avg_gpa: 3.88, avg_sat: 1430, cost: 62000, majors: ["Social Sciences / Humanities","STEM","Arts / Design / Film","Business / Economics"], prestige: "high", features: ["Strong Greek life / social scene","Tight-knit / close community","Research opportunities"], athletics: "D1", description: "A top New York liberal arts college in Hamilton with strong academics and a remarkably generous alumni network." , test_optional: true, rotc: ["Army","AirForce"], auto_scholarship: "" },
+  { name: "Hamilton College", type: "Private", state: "NY", size: "small", setting: ["rural/college-town"], avg_gpa: 3.88, avg_sat: 1430, cost: 62000, majors: ["Social Sciences / Humanities","Arts / Design / Film","STEM"], prestige: "high", features: ["Tight-knit / close community","Research opportunities"], athletics: "D3", description: "A small, highly ranked liberal arts college in Clinton, NY known for excellent writing instruction." , test_optional: true, rotc: [], auto_scholarship: "" },
+  { name: "Ithaca College", type: "Private", state: "NY", size: "medium", setting: ["suburban"], avg_gpa: 3.6, avg_sat: 1230, cost: 54000, majors: ["Arts / Design / Film","Business / Economics","Pre-Med / Health Sciences","Social Sciences / Humanities"], prestige: "medium-high", features: ["Arts & performance scene","Tight-knit / close community"], athletics: "D3", description: "A top communications and music school in Ithaca with excellent physical therapy and media programs." , test_optional: true, rotc: ["Army","AirForce"], auto_scholarship: "" },
+  { name: "Skidmore College", type: "Private", state: "NY", size: "small", setting: ["suburban","rural/college-town"], avg_gpa: 3.75, avg_sat: 1320, cost: 62000, majors: ["Arts / Design / Film","Social Sciences / Humanities","Business / Economics","STEM"], prestige: "medium-high", features: ["Arts & performance scene","Tight-knit / close community"], athletics: "D3", description: "A creative Saratoga Springs liberal arts college with excellent arts, business, and interdisciplinary programs." , test_optional: true, rotc: ["Army"], auto_scholarship: "" },
+  { name: "Drexel University", type: "Private", state: "PA", size: "large", setting: ["urban"], avg_gpa: 3.7, avg_sat: 1280, cost: 58000, majors: ["STEM","Business / Economics","Arts / Design / Film","Pre-Med / Health Sciences"], prestige: "medium-high", features: ["Entrepreneurship / startup culture","Internship connections"], athletics: "D1", description: "A Philadelphia co-op powerhouse where students alternate semesters of study with paid work experience." , test_optional: true, rotc: ["Army","AirForce"], auto_scholarship: "Automatic merit: up to $20K/yr for OOS students with 3.5+ GPA" },
+  { name: "Lehigh University", type: "Private", state: "PA", size: "medium", setting: ["suburban"], avg_gpa: 3.8, avg_sat: 1400, cost: 60000, majors: ["STEM","Business / Economics","Social Sciences / Humanities","Arts / Design / Film"], prestige: "high", features: ["Strong Greek life / social scene","Research opportunities","Entrepreneurship / startup culture"], athletics: "D1", description: "A top Bethlehem, PA engineering and business school with excellent job placement and a spirited social scene." , test_optional: true, rotc: ["Army","AirForce"], auto_scholarship: "" },
+  { name: "Bucknell University", type: "Private", state: "PA", size: "small", setting: ["rural/college-town"], avg_gpa: 3.8, avg_sat: 1360, cost: 62000, majors: ["STEM","Business / Economics","Social Sciences / Humanities","Arts / Design / Film"], prestige: "high", features: ["Strong Greek life / social scene","Research opportunities","Tight-knit / close community"], athletics: "D1", description: "A top Lewisburg, PA university combining liberal arts excellence with strong engineering and business programs." , test_optional: true, rotc: ["Army"], auto_scholarship: "" },
+  { name: "Brandeis University", type: "Private", state: "MA", size: "medium", setting: ["suburban"], avg_gpa: 3.85, avg_sat: 1410, cost: 60000, majors: ["Social Sciences / Humanities","STEM","Pre-Med / Health Sciences","Arts / Design / Film"], prestige: "high", features: ["Research opportunities","Community service / civic focus","Tight-knit / close community"], athletics: "D3", description: "A research university outside Boston with excellent social science, pre-med, and social justice programs." , test_optional: true, rotc: ["Army"], auto_scholarship: "" },
+  { name: "University of Connecticut", type: "Public", state: "CT", size: "large", setting: ["suburban","rural/college-town"], avg_gpa: 3.75, avg_sat: 1300, cost: 38000, majors: ["STEM","Business / Economics","Pre-Med / Health Sciences","Social Sciences / Humanities"], prestige: "medium-high", features: ["Research opportunities","Strong Greek life / social scene"], athletics: "D1", description: "A rising Big East public university with top pharmacy, business, and nursing programs in Storrs." , test_optional: true, rotc: ["Army","AirForce"], auto_scholarship: "Automatic merit: Nutmeg Scholarship ($10K/yr) for OOS with 3.5+ GPA" },
+  { name: "University of Vermont", type: "Public", state: "VT", size: "medium", setting: ["urban","suburban"], avg_gpa: 3.65, avg_sat: 1250, cost: 45000, majors: ["Pre-Med / Health Sciences","STEM","Business / Economics","Social Sciences / Humanities","Education"], prestige: "medium", features: ["Research opportunities","Community service / civic focus"], athletics: "D1", description: "Burlington's flagship with excellent environmental, medical, and agriculture programs and a vibrant outdoor culture." , test_optional: true, rotc: ["Army"], auto_scholarship: "Automatic merit: up to $10K/yr for OOS students with 3.5+ GPA" },
+  { name: "Providence College", type: "Private", state: "RI", size: "small", setting: ["urban"], avg_gpa: 3.6, avg_sat: 1210, cost: 56000, majors: ["Business / Economics","Social Sciences / Humanities","Pre-Med / Health Sciences","Education"], prestige: "medium-high", features: ["Religious / values-based environment","Tight-knit / close community"], athletics: "D1", description: "A Dominican Catholic college in Providence with excellent business, pre-health, and liberal arts programs." , test_optional: true, rotc: ["Army","Navy"], auto_scholarship: "" },
+  { name: "Holy Cross College", type: "Private", state: "MA", size: "small", setting: ["suburban"], avg_gpa: 3.8, avg_sat: 1340, cost: 62000, majors: ["Social Sciences / Humanities","STEM","Business / Economics"], prestige: "high", features: ["Religious / values-based environment","Tight-knit / close community"], athletics: "D1", description: "A top Jesuit liberal arts college in Worcester with exceptional pre-law, business, and social sciences." , test_optional: true, rotc: ["Army","Navy"], auto_scholarship: "" },
+  { name: "Fairfield University", type: "Private", state: "CT", size: "small", setting: ["suburban"], avg_gpa: 3.6, avg_sat: 1240, cost: 56000, majors: ["Business / Economics","Pre-Med / Health Sciences","Social Sciences / Humanities","STEM"], prestige: "medium-high", features: ["Religious / values-based environment","Tight-knit / close community"], athletics: "D1", description: "A Jesuit university in coastal Fairfield, CT with a top business school and strong health science programs." , test_optional: true, rotc: ["Army","Navy"], auto_scholarship: "" },
+  { name: "University of Delaware", type: "Public", state: "DE", size: "large", setting: ["suburban"], avg_gpa: 3.7, avg_sat: 1250, cost: 35000, majors: ["STEM","Business / Economics","Social Sciences / Humanities","Arts / Design / Film"], prestige: "medium-high", features: ["Research opportunities","Strong Greek life / social scene"], athletics: "D1", description: "Newark's flagship with excellent fashion, business, and environmental sciences plus strong co-op opportunities." , test_optional: true, rotc: ["Army","AirForce"], auto_scholarship: "Automatic merit: Presidential Scholarship ($20K/yr) for OOS with 3.75+ GPA" },
+  { name: "Rutgers University", type: "Public", state: "NJ", size: "very large", setting: ["suburban"], avg_gpa: 3.65, avg_sat: 1310, cost: 35000, majors: ["STEM","Business / Economics","Pre-Med / Health Sciences","Social Sciences / Humanities","Law / Political Science"], prestige: "medium-high", features: ["Research opportunities","Diversity & inclusion focus"], athletics: "D1", description: "New Jersey's flagship with excellent pharmacy, STEM, and social sciences programs and a strong alumni network." , test_optional: true, rotc: ["Army","Navy","AirForce"], auto_scholarship: "" },
+  { name: "Stevens Institute of Technology", type: "Private", state: "NJ", size: "small", setting: ["urban","suburban"], avg_gpa: 3.8, avg_sat: 1410, cost: 58000, majors: ["STEM","Business / Economics"], prestige: "high", features: ["Research opportunities","Entrepreneurship / startup culture","Internship connections"], athletics: "D3", description: "A top engineering and science school on the Hudson with NYC views, strong co-ops, and high starting salaries." , test_optional: true, rotc: ["Army","Navy"], auto_scholarship: "Automatic merit: Presidential Scholarship ($22K/yr) for OOS top applicants" },
+  { name: "University of Michigan", type: "Public", state: "MI", size: "very large", setting: ["urban","suburban"], avg_gpa: 3.9, avg_sat: 1440, cost: 52000, majors: ["STEM","Business / Economics","Law / Political Science","Pre-Med / Health Sciences","Social Sciences / Humanities"], prestige: "high", features: ["Research opportunities","Strong Greek life / social scene"], athletics: "D1", description: "A top-10 public university with elite programs in business, engineering, and pre-law in vibrant Ann Arbor." , test_optional: true, rotc: ["Army","Navy","AirForce"], auto_scholarship: "" },
+  { name: "Ohio State University", type: "Public", state: "OH", size: "very large", setting: ["urban"], avg_gpa: 3.7, avg_sat: 1290, cost: 32000, majors: ["STEM","Business / Economics","Pre-Med / Health Sciences","Social Sciences / Humanities","Education"], prestige: "high", features: ["Research opportunities","Strong Greek life / social scene"], athletics: "D1", description: "Columbus's flagship and one of the nation's largest, top programs in engineering, business, and medicine." , test_optional: true, rotc: ["Army","Navy","AirForce"], auto_scholarship: "Automatic merit: Trustees Scholarship ($12K/yr) for OOS with 3.9+ GPA" },
+  { name: "University of Wisconsin-Madison", type: "Public", state: "WI", size: "very large", setting: ["urban"], avg_gpa: 3.8, avg_sat: 1370, cost: 38000, majors: ["STEM","Business / Economics","Social Sciences / Humanities","Law / Political Science","Pre-Med / Health Sciences"], prestige: "high", features: ["Research opportunities","Strong Greek life / social scene"], athletics: "D1", description: "A Big Ten powerhouse on Lake Mendota with top-ranked research programs and a vibrant Madison social scene." , test_optional: true, rotc: ["Army","Navy","AirForce"], auto_scholarship: "" },
+  { name: "University of Illinois Urbana-Champaign", type: "Public", state: "IL", size: "very large", setting: ["suburban","rural/college-town"], avg_gpa: 3.8, avg_sat: 1400, cost: 34000, majors: ["STEM","Business / Economics","Social Sciences / Humanities","Arts / Design / Film"], prestige: "high", features: ["Research opportunities","Entrepreneurship / startup culture","Strong Greek life / social scene"], athletics: "D1", description: "A Big Ten engineering and tech giant with one of the world's top CS programs in Champaign-Urbana." , test_optional: true, rotc: ["Army","Navy","AirForce"], auto_scholarship: "" },
+  { name: "Purdue University", type: "Public", state: "IN", size: "very large", setting: ["suburban","rural/college-town"], avg_gpa: 3.7, avg_sat: 1290, cost: 30000, majors: ["STEM","Business / Economics","Education"], prestige: "high", features: ["Research opportunities","Entrepreneurship / startup culture"], athletics: "D1", description: "West Lafayette's engineering powerhouse, one of America's top technical universities with outstanding career outcomes." , test_optional: true, rotc: ["Army","Navy","AirForce"], auto_scholarship: "Automatic merit: Purdue Promise ($10K/yr) for OOS with 3.7+ GPA" },
+  { name: "Indiana University Bloomington", type: "Public", state: "IN", size: "very large", setting: ["suburban","rural/college-town"], avg_gpa: 3.65, avg_sat: 1220, cost: 34000, majors: ["Business / Economics","Arts / Design / Film","Social Sciences / Humanities","STEM","Pre-Med / Health Sciences"], prestige: "medium-high", features: ["Arts & performance scene","Strong Greek life / social scene","Research opportunities"], athletics: "D1", description: "Bloomington's flagship with the world-renowned Kelley School of Business and exceptional arts and music programs." , test_optional: true, rotc: ["Army","AirForce"], auto_scholarship: "Automatic merit: Provost Scholarship ($14K/yr) for OOS with 3.9+ GPA" },
+  { name: "Michigan State University", type: "Public", state: "MI", size: "very large", setting: ["suburban","rural/college-town"], avg_gpa: 3.65, avg_sat: 1200, cost: 30000, majors: ["STEM","Business / Economics","Education","Social Sciences / Humanities"], prestige: "medium-high", features: ["Research opportunities","Strong Greek life / social scene"], athletics: "D1", description: "East Lansing's major Big Ten school with top veterinary medicine, communications, and agriculture programs." , test_optional: true, rotc: ["Army","AirForce"], auto_scholarship: "Automatic merit: Alumni Distinguished ($8K/yr) for OOS with 3.7+ GPA" },
+  { name: "University of Minnesota", type: "Public", state: "MN", size: "very large", setting: ["urban"], avg_gpa: 3.7, avg_sat: 1310, cost: 32000, majors: ["STEM","Business / Economics","Pre-Med / Health Sciences","Social Sciences / Humanities","Education"], prestige: "medium-high", features: ["Research opportunities","Diversity & inclusion focus"], athletics: "D1", description: "A Big Ten research leader in Minneapolis/St. Paul with top medical, engineering, and business programs." , test_optional: true, rotc: ["Army","Navy","AirForce"], auto_scholarship: "Automatic merit: Gold Scholarship ($8K/yr) for OOS students" },
+  { name: "Washington University in St. Louis", type: "Private", state: "MO", size: "medium", setting: ["suburban"], avg_gpa: 3.92, avg_sat: 1530, cost: 62000, majors: ["Pre-Med / Health Sciences","STEM","Business / Economics","Social Sciences / Humanities","Law / Political Science"], prestige: "elite", features: ["Research opportunities","Tight-knit / close community"], athletics: "D3", description: "A top-tier research university in St. Louis with exceptional pre-med, business, and social work programs." , test_optional: true, rotc: ["Army","AirForce"], auto_scholarship: "" },
+  { name: "Carleton College", type: "Private", state: "MN", size: "small", setting: ["rural/college-town"], avg_gpa: 3.93, avg_sat: 1490, cost: 62000, majors: ["Social Sciences / Humanities","STEM","Arts / Design / Film"], prestige: "high", features: ["Research opportunities","Tight-knit / close community"], athletics: "D3", description: "A top Midwest liberal arts college in Northfield known for exceptional teaching and graduate school preparation." , test_optional: true, rotc: ["Army"], auto_scholarship: "" },
+  { name: "Grinnell College", type: "Private", state: "IA", size: "small", setting: ["rural/college-town"], avg_gpa: 3.85, avg_sat: 1430, cost: 58000, majors: ["Social Sciences / Humanities","STEM","Arts / Design / Film"], prestige: "high", features: ["Community service / civic focus","Tight-knit / close community","Research opportunities"], athletics: "D3", description: "A selective Iowa liberal arts college known for exceptional financial aid, no required courses, and social commitment." , test_optional: true, rotc: ["Army"], auto_scholarship: "" },
+  { name: "Macalester College", type: "Private", state: "MN", size: "small", setting: ["urban"], avg_gpa: 3.85, avg_sat: 1400, cost: 60000, majors: ["Social Sciences / Humanities","STEM","Arts / Design / Film"], prestige: "high", features: ["Community service / civic focus","Study abroad programs","Tight-knit / close community"], athletics: "D3", description: "A top urban liberal arts college in St. Paul with exceptional international studies and social justice programs." , test_optional: true, rotc: ["Army"], auto_scholarship: "" },
+  { name: "Oberlin College", type: "Private", state: "OH", size: "small", setting: ["rural/college-town"], avg_gpa: 3.85, avg_sat: 1400, cost: 62000, majors: ["Arts / Design / Film","Social Sciences / Humanities","STEM"], prestige: "high", features: ["Arts & performance scene","Community service / civic focus","Tight-knit / close community"], athletics: "D3", description: "A historic liberal arts college with one of America's top conservatories and a deeply progressive community." , test_optional: true, rotc: [], auto_scholarship: "" },
+  { name: "Case Western Reserve University", type: "Private", state: "OH", size: "medium", setting: ["urban"], avg_gpa: 3.85, avg_sat: 1490, cost: 58000, majors: ["STEM","Pre-Med / Health Sciences","Business / Economics","Social Sciences / Humanities"], prestige: "high", features: ["Research opportunities","Entrepreneurship / startup culture"], athletics: "D3", description: "A Cleveland research powerhouse with elite engineering, nursing, and medical programs." , test_optional: true, rotc: ["Army","AirForce"], auto_scholarship: "Automatic merit: Presidential ($22K/yr) for OOS with 3.75+ GPA" },
+  { name: "Kenyon College", type: "Private", state: "OH", size: "small", setting: ["rural/college-town"], avg_gpa: 3.85, avg_sat: 1390, cost: 62000, majors: ["Social Sciences / Humanities","Arts / Design / Film","STEM"], prestige: "high", features: ["Arts & performance scene","Tight-knit / close community"], athletics: "D3", description: "A top Ohio liberal arts college famous for its literary tradition and stunning collegiate gothic campus in Gambier." , test_optional: true, rotc: ["Army"], auto_scholarship: "" },
+  { name: "Denison University", type: "Private", state: "OH", size: "small", setting: ["rural/college-town"], avg_gpa: 3.75, avg_sat: 1280, cost: 57000, majors: ["Social Sciences / Humanities","Arts / Design / Film","STEM","Business / Economics"], prestige: "medium-high", features: ["Strong Greek life / social scene","Tight-knit / close community"], athletics: "D3", description: "A beautiful Ohio liberal arts college with strong arts, communications, and sciences in Granville." , test_optional: true, rotc: ["Army"], auto_scholarship: "Automatic merit: $16K–$24K/yr for OOS students with strong academic record" },
+  { name: "Loyola University Chicago", type: "Private", state: "IL", size: "medium", setting: ["urban"], avg_gpa: 3.65, avg_sat: 1250, cost: 50000, majors: ["Business / Economics","Pre-Med / Health Sciences","Law / Political Science","Social Sciences / Humanities"], prestige: "medium-high", features: ["Religious / values-based environment","Community service / civic focus","Internship connections"], athletics: "D1", description: "A lakefront Chicago Jesuit school with strong healthcare, business, and social justice programs." , test_optional: true, rotc: ["Army","AirForce"], auto_scholarship: "Automatic merit: up to $18K/yr for OOS students with 3.5+ GPA" },
+  { name: "Marquette University", type: "Private", state: "WI", size: "medium", setting: ["urban"], avg_gpa: 3.65, avg_sat: 1230, cost: 48000, majors: ["Business / Economics","Pre-Med / Health Sciences","Law / Political Science","Social Sciences / Humanities"], prestige: "medium-high", features: ["Religious / values-based environment","Community service / civic focus"], athletics: "D1", description: "A Jesuit university in Milwaukee with excellent business, dentistry, and law programs." , test_optional: true, rotc: ["Army","AirForce"], auto_scholarship: "Automatic merit: up to $16K/yr for OOS students with 3.5+ GPA" },
+  { name: "University of Iowa", type: "Public", state: "IA", size: "large", setting: ["urban"], avg_gpa: 3.6, avg_sat: 1200, cost: 30000, majors: ["Pre-Med / Health Sciences","Social Sciences / Humanities","Business / Economics","Arts / Design / Film","STEM"], prestige: "medium-high", features: ["Research opportunities","Arts & performance scene"], athletics: "D1", description: "Iowa City's flagship with one of America's top creative writing programs and excellent medical and law schools." , test_optional: true, rotc: ["Army","AirForce"], auto_scholarship: "Automatic merit: Hawkeye Excellence ($6K/yr) for OOS with 3.5+ GPA" },
+  { name: "University of Missouri", type: "Public", state: "MO", size: "large", setting: ["suburban"], avg_gpa: 3.6, avg_sat: 1200, cost: 28000, majors: ["Business / Economics","STEM","Social Sciences / Humanities","Pre-Med / Health Sciences","Arts / Design / Film"], prestige: "medium", features: ["Strong Greek life / social scene","Research opportunities"], athletics: "D1", description: "Missouri's flagship in Columbia with the country's first journalism school and strong medical and business programs." , test_optional: true, rotc: ["Army","AirForce"], auto_scholarship: "Automatic merit: Excellence Award ($8K/yr) for OOS with 3.5+ GPA" },
+  { name: "Saint Louis University", type: "Private", state: "MO", size: "medium", setting: ["urban"], avg_gpa: 3.75, avg_sat: 1270, cost: 50000, majors: ["Pre-Med / Health Sciences","Business / Economics","Law / Political Science","STEM","Social Sciences / Humanities"], prestige: "medium-high", features: ["Religious / values-based environment","Research opportunities","Community service / civic focus"], athletics: "D1", description: "A Jesuit university in St. Louis with excellent medical, business, and law programs and a strong service mission." , test_optional: true, rotc: ["Army","AirForce"], auto_scholarship: "Automatic merit: Billiken ($14K–$20K/yr) for OOS students" },
+  { name: "Creighton University", type: "Private", state: "NE", size: "medium", setting: ["urban"], avg_gpa: 3.7, avg_sat: 1240, cost: 46000, majors: ["Pre-Med / Health Sciences","Business / Economics","Law / Political Science","Social Sciences / Humanities"], prestige: "medium-high", features: ["Religious / values-based environment","Tight-knit / close community"], athletics: "D1", description: "Omaha's Jesuit university with outstanding health science, pharmacy, and business programs." , test_optional: true, rotc: ["Army","AirForce"], auto_scholarship: "Automatic merit: $14K–$22K/yr for OOS students with 3.5+ GPA" },
+  { name: "Butler University", type: "Private", state: "IN", size: "small", setting: ["suburban"], avg_gpa: 3.75, avg_sat: 1250, cost: 46000, majors: ["Business / Economics","Pre-Med / Health Sciences","Arts / Design / Film","Education","STEM"], prestige: "medium-high", features: ["Arts & performance scene","Tight-knit / close community"], athletics: "D1", description: "An Indianapolis university with top performing arts, pharmacy, and business programs." , test_optional: true, rotc: ["Army","AirForce"], auto_scholarship: "Automatic merit: up to $20K/yr for OOS students with strong profile" },
+  { name: "University of Nebraska-Lincoln", type: "Public", state: "NE", size: "large", setting: ["suburban"], avg_gpa: 3.5, avg_sat: 1160, cost: 24000, majors: ["STEM","Business / Economics","Education","Social Sciences / Humanities"], prestige: "medium", features: ["Research opportunities","Strong Greek life / social scene"], athletics: "D1", description: "Nebraska's flagship with top agricultural science, engineering, and business programs." , test_optional: true, rotc: ["Army","AirForce"], auto_scholarship: "Automatic merit: Regents ($8K/yr) for OOS with 3.5+ GPA" },
+  { name: "University of Kansas", type: "Public", state: "KS", size: "large", setting: ["suburban"], avg_gpa: 3.5, avg_sat: 1140, cost: 26000, majors: ["Pre-Med / Health Sciences","Business / Economics","Social Sciences / Humanities","STEM","Law / Political Science"], prestige: "medium", features: ["Strong Greek life / social scene","Research opportunities"], athletics: "D1", description: "Lawrence's flagship with top pharmacy, business, and architecture programs and beloved Jayhawk basketball." , test_optional: true, rotc: ["Army","AirForce"], auto_scholarship: "Automatic merit: KU Excellence ($8K–$14K/yr) for OOS students" },
+  { name: "Wheaton College (IL)", type: "Private", state: "IL", size: "small", setting: ["suburban"], avg_gpa: 3.8, avg_sat: 1330, cost: 38000, majors: ["Social Sciences / Humanities","STEM","Arts / Design / Film"], prestige: "medium-high", features: ["Religious / values-based environment","Tight-knit / close community"], athletics: "D3", description: "A top evangelical Christian liberal arts college outside Chicago, producing remarkable scholars and leaders." , test_optional: true, rotc: ["Army"], auto_scholarship: "" },
+  { name: "Juilliard School", type: "Private", state: "NY", size: "small", setting: ["urban"], avg_gpa: 3.8, avg_sat: 1400, cost: 52000, majors: ["Arts / Design / Film"], prestige: "elite", features: ["Arts & performance scene","Tight-knit / close community"], athletics: "no_ncaa", description: "The world's top performing arts school, producing the most celebrated musicians, actors, and dancers of our time." , test_optional: true, rotc: [], auto_scholarship: "" },
+  { name: "Rhode Island School of Design", type: "Private", state: "RI", size: "small", setting: ["urban"], avg_gpa: 3.5, avg_sat: 1300, cost: 58000, majors: ["Arts / Design / Film"], prestige: "elite", features: ["Arts & performance scene","Research opportunities","Tight-knit / close community"], athletics: "no_ncaa", description: "Consistently ranked the #1 art and design school in the US, connected to Brown University in Providence." , test_optional: true, rotc: [], auto_scholarship: "" },
+  { name: "Berklee College of Music", type: "Private", state: "MA", size: "medium", setting: ["urban"], avg_gpa: 3.5, avg_sat: 1200, cost: 55000, majors: ["Arts / Design / Film"], prestige: "high", features: ["Arts & performance scene","Entrepreneurship / startup culture","Internship connections"], athletics: "no_ncaa", description: "The world's premier contemporary music school in Boston, launching professional musicians, producers, and composers." , test_optional: true, rotc: [], auto_scholarship: "" },
+  { name: "Parsons School of Design", type: "Private", state: "NY", size: "medium", setting: ["urban"], avg_gpa: 3.4, avg_sat: 1200, cost: 58000, majors: ["Arts / Design / Film"], prestige: "high", features: ["Arts & performance scene","Entrepreneurship / startup culture"], athletics: "no_ncaa", description: "One of the world's top design schools in Manhattan, producing leading fashion designers, architects, and product designers." , test_optional: true, rotc: [], auto_scholarship: "" },
+  { name: "University of Richmond", type: "Private", state: "VA", size: "small", setting: ["suburban"], avg_gpa: 3.8, avg_sat: 1380, cost: 58000, majors: ["Business / Economics","Law / Political Science","Social Sciences / Humanities","STEM"], prestige: "high", features: ["Tight-knit / close community","Strong Greek life / social scene","Research opportunities"], athletics: "D1", description: "A top Virginia liberal arts university with an outstanding business school and a beautiful campus." , test_optional: true, rotc: ["Army","AirForce"], auto_scholarship: "" },
+  { name: "James Madison University", type: "Public", state: "VA", size: "large", setting: ["suburban"], avg_gpa: 3.7, avg_sat: 1200, cost: 28000, majors: ["Business / Economics","Arts / Design / Film","Social Sciences / Humanities","STEM","Education"], prestige: "medium-high", features: ["Arts & performance scene","Strong Greek life / social scene"], athletics: "D1", description: "Harrisonburg's flagship with excellent music, business, and communication programs and a vibrant student life." , test_optional: true, rotc: ["Army","AirForce"], auto_scholarship: "Automatic merit: up to $5K/yr for OOS students with 3.8+ GPA" },
+  { name: "College of Charleston", type: "Public", state: "SC", size: "medium", setting: ["urban"], avg_gpa: 3.7, avg_sat: 1210, cost: 30000, majors: ["Business / Economics","Social Sciences / Humanities","Arts / Design / Film","STEM"], prestige: "medium-high", features: ["Arts & performance scene","Study abroad programs"], athletics: "D1", description: "A historic Charleston public school with strong arts, marine biology, and business in a gorgeous coastal city." , test_optional: true, rotc: ["Army","AirForce"], auto_scholarship: "Automatic merit: Honors College ($6K/yr) for OOS with 3.5+ GPA" },
+  { name: "Appalachian State University", type: "Public", state: "NC", size: "large", setting: ["rural/college-town","mountain/outdoor"], avg_gpa: 3.7, avg_sat: 1200, cost: 22000, majors: ["Business / Economics","Education","Social Sciences / Humanities","STEM"], prestige: "medium-high", features: ["Community service / civic focus","Research opportunities"], athletics: "D1", description: "A Boone, NC mountain university with excellent business, education, and sustainable living programs." , test_optional: true, rotc: ["Army"], auto_scholarship: "Automatic merit: $4K–$8K/yr for OOS students with strong GPA" },
+  { name: "Furman University", type: "Private", state: "SC", size: "small", setting: ["suburban"], avg_gpa: 3.8, avg_sat: 1290, cost: 56000, majors: ["Social Sciences / Humanities","STEM","Business / Economics","Arts / Design / Film"], prestige: "medium-high", features: ["Tight-knit / close community","Community service / civic focus"], athletics: "D1", description: "A beautiful Greenville liberal arts college with strong study abroad, health sciences, and engaged learning programs." , test_optional: true, rotc: ["Army","AirForce"], auto_scholarship: "Automatic merit: Furman Advantage ($16K–$22K/yr) for OOS with 3.5+ GPA" },
+  { name: "Rhodes College", type: "Private", state: "TN", size: "small", setting: ["urban"], avg_gpa: 3.8, avg_sat: 1320, cost: 56000, majors: ["Social Sciences / Humanities","Pre-Med / Health Sciences","STEM","Business / Economics"], prestige: "medium-high", features: ["Tight-knit / close community","Community service / civic focus"], athletics: "D3", description: "A top Memphis liberal arts college with exceptional pre-med, international studies, and community engagement." , test_optional: true, rotc: ["Army"], auto_scholarship: "Automatic merit: $18K–$24K/yr for OOS students with 3.5+ GPA" },
+  { name: "Sewanee: The University of the South", type: "Private", state: "TN", size: "small", setting: ["rural/college-town"], avg_gpa: 3.75, avg_sat: 1280, cost: 56000, majors: ["Social Sciences / Humanities","STEM","Arts / Design / Film"], prestige: "high", features: ["Tight-knit / close community","Community service / civic focus","Religious / values-based environment"], athletics: "D3", description: "A stunning mountaintop liberal arts campus in Tennessee with an honor code, Gothic architecture, and exceptional faculty." , test_optional: true, rotc: ["Army"], auto_scholarship: "Automatic merit: $18K–$22K/yr for OOS applicants with strong record" },
+  { name: "University of Mississippi", type: "Public", state: "MS", size: "large", setting: ["suburban","rural/college-town"], avg_gpa: 3.5, avg_sat: 1110, cost: 25000, majors: ["Business / Economics","Law / Political Science","Social Sciences / Humanities","STEM"], prestige: "medium", features: ["Strong Greek life / social scene","Research opportunities"], athletics: "D1", description: "Ole Miss in Oxford is known for Southern charm, strong Greek life, an outstanding law school, and football traditions." , test_optional: true, rotc: ["Army","AirForce"], auto_scholarship: "Automatic merit: Flagship ($8K–$16K/yr) for OOS with 3.5+ GPA" },
+  { name: "Louisiana State University", type: "Public", state: "LA", size: "large", setting: ["suburban"], avg_gpa: 3.5, avg_sat: 1160, cost: 28000, majors: ["STEM","Business / Economics","Social Sciences / Humanities","Arts / Design / Film"], prestige: "medium", features: ["Strong Greek life / social scene","Research opportunities"], athletics: "D1", description: "Baton Rouge's flagship with top petroleum engineering and mass communication programs and intense Tigers pride." , test_optional: true, rotc: ["Army","Navy","AirForce"], auto_scholarship: "Automatic merit: Tiger Excellence Scholarship ($10K+/yr) for OOS with 3.5+ GPA" },
+  { name: "Xavier University of Louisiana", type: "Private", state: "LA", size: "small", setting: ["urban"], avg_gpa: 3.4, avg_sat: 1080, cost: 24000, majors: ["Pre-Med / Health Sciences","STEM","Social Sciences / Humanities","Business / Economics"], prestige: "medium-high", features: ["Religious / values-based environment","Diversity & inclusion focus","Community service / civic focus"], athletics: "NAIA", description: "The nation's top producer of Black physicians and pharmacists, a Catholic HBCU in New Orleans." , test_optional: true, rotc: ["Army"], auto_scholarship: "" },
+  { name: "Worcester Polytechnic Institute", type: "Private", state: "MA", size: "medium", setting: ["urban"], avg_gpa: 3.9, avg_sat: 1400, cost: 58000, majors: ["STEM","Business / Economics"], prestige: "high", features: ["Research opportunities","Entrepreneurship / startup culture"], athletics: "D3", description: "A top Massachusetts STEM school with a unique project-based curriculum and strong industry placement." , test_optional: true, rotc: ["Army","AirForce"], auto_scholarship: "Automatic merit: Presidential Scholarship ($25K/yr) for OOS with 3.9+ GPA" },
+  { name: "Rochester Institute of Technology", type: "Private", state: "NY", size: "large", setting: ["suburban"], avg_gpa: 3.8, avg_sat: 1310, cost: 55000, majors: ["STEM","Arts / Design / Film","Business / Economics"], prestige: "medium-high", features: ["Entrepreneurship / startup culture","Research opportunities","Internship connections"], athletics: "D3", description: "A top technical university with world-class programs in photography, game design, engineering, and computing." , test_optional: true, rotc: ["Army","AirForce"], auto_scholarship: "Automatic merit: Presidential ($20K/yr) for OOS with 3.8+ GPA" },
+];
+
+// ── Scoring algorithm ────────────────────────────────────────────────────────
+function scoreSchool(school, answers) {
+  let score = 0;
+
+  // GPA match
+  const gpaMap = { "3.8 – 4.0": 3.9, "3.5 – 3.79": 3.65, "3.0 – 3.49": 3.25, "2.5 – 2.99": 2.75, "Below 2.5": 2.2 };
+  const studentGPA = gpaMap[answers.gpa] || 3.5;
+  const gpaDiff = school.avg_gpa - studentGPA;
+  if (gpaDiff <= -0.4) score += 15; // safety
+  else if (gpaDiff <= 0.1) score += 10; // match
+  else if (gpaDiff <= 0.4) score += 5; // slight reach
+
+  // SAT match
+  const satMap = { "SAT 1400+ / ACT 31+": 1430, "SAT 1200–1399 / ACT 26–30": 1300, "SAT 1000–1199 / ACT 20–25": 1100, "SAT below 1000 / ACT below 20": 950, "Test-optional / not yet taken": 1200 };
+  const studentSAT = satMap[answers.test_score] || 1200;
+  const satDiff = school.avg_sat - studentSAT;
+  if (satDiff <= -100) score += 10;
+  else if (satDiff <= 50) score += 8;
+  else if (satDiff <= 150) score += 4;
+
+  // Location preferences
+  const locPref = answers.location_pref || [];
+  if (locPref.includes("Open to anywhere in the US")) score += 8;
+  if (locPref.includes("Anywhere in California") && school.state === "CA") score += 12;
+  if (locPref.includes("West Coast") && ["CA","OR","WA"].includes(school.state)) score += 8;
+  if (locPref.includes("East Coast") && ["NY","MA","PA","FL"].includes(school.state)) score += 8;
+  if (locPref.includes("South / Southeast") && ["TX","LA","FL"].includes(school.state)) score += 8;
+  if (locPref.includes("Midwest") && ["MI"].includes(school.state)) score += 8;
+
+  // UC/CSU interest
+  if (answers.state_school === "Yes — high priority" && school.state === "CA" && school.type === "Public") score += 10;
+  if (answers.state_school === "Yes — as one option among many" && school.state === "CA" && school.type === "Public") score += 5;
+
+  // Campus size
+  if (answers.campus_size === school.size) score += 8;
+  if (answers.campus_size === "No preference — doesn't matter") score += 3;
+
+  // Campus setting
+  const settingPref = answers.campus_setting || [];
+  const settingNorm = settingPref.map(s => s.toLowerCase().replace(/ \/ /g, "/").replace(/ /g, ""));
+  school.setting.forEach(s => {
+    if (settingNorm.some(p => s.includes(p.split("/")[0]) || p.includes(s))) score += 4;
+  });
+
+  // Major match
+  const majorPref = answers.major || [];
+  majorPref.forEach(m => { if (school.majors.includes(m)) score += 6; });
+
+  // Budget
+  const budgetMap = { "Under $20,000/year": 20000, "$20,000 – $35,000/year": 35000, "$35,000 – $55,000/year": 55000, "$55,000+/year (private school tuition)": 100000, "Need maximum financial aid / merit scholarships": 25000 };
+  const studentBudget = budgetMap[answers.budget] || 50000;
+  if (school.cost <= studentBudget) score += 8;
+  else if (school.cost <= studentBudget * 1.2) score += 3;
+
+  // Features / culture
+  const culturePref = answers.campus_culture || [];
+  culturePref.forEach(c => { if (school.features.includes(c)) score += 4; });
+
+  // Career/prestige
+  const prestigePref = answers.prestige;
+  if (prestigePref === "Very important — I want a highly ranked school" && ["elite","high"].includes(school.prestige)) score += 10;
+  if (prestigePref === "Somewhat important" && ["elite","high","medium-high"].includes(school.prestige)) score += 5;
+  if (prestigePref === "I care more about fit than rankings") score += 3;
+
+  // Athletics
+  if (answers.sports === "Yes — I plan to play Division I" && school.athletics === "D1") score += 8;
+  if (answers.sports === "Yes — Division II or III" && ["D2","D3"].includes(school.athletics)) score += 8;
+
+  // ROTC interest
+  const rotcAnswer = answers.rotc || "";
+  if (rotcAnswer && rotcAnswer !== "No / not interested" && rotcAnswer !== "Not sure / tell me more") {
+    const hasAny = school.rotc && school.rotc.length > 0;
+    const branchMap = {
+      "Yes — Army ROTC": "Army",
+      "Yes — Navy / Marine ROTC": "Navy",
+      "Yes — Air Force ROTC": "AirForce",
+      "Open to any ROTC branch": null,
+    };
+    const wantedBranch = branchMap[rotcAnswer];
+    if (hasAny) {
+      if (!wantedBranch || school.rotc.includes(wantedBranch)) score += 10;
+      else score += 4; // has ROTC but different branch
+    }
+  }
+
+  // Test-optional interest
+  if ((answers.deal_breakers || []).includes("Must be test-optional") && !school.test_optional) return -999;
+
+  // Auto-scholarship interest
+  if ((answers.deal_breakers || []).includes("Must have automatic merit scholarships for OOS students")) {
+    if (!school.auto_scholarship) score -= 10;
+    else score += 12;
+  } else if (school.auto_scholarship && (answers.fin_aid === "Critical — it will determine where I go" || answers.fin_aid === "Very important")) {
+    score += 6; // bonus: has auto scholarships and student cares about aid
+  }
+
+  // Deal-breakers
+  const dealBreakers = answers.deal_breakers || [];
+  if (dealBreakers.includes("Must be in California") && school.state !== "CA") return -999;
+  if (dealBreakers.includes("Must have ROTC program") && (!school.rotc || school.rotc.length === 0)) return -999;
+  if (dealBreakers.includes("Must have strong Greek life") && !school.features.includes("Strong Greek life / social scene")) score -= 5;
+  if (dealBreakers.includes("Must have no Greek life") && school.features.includes("Strong Greek life / social scene")) return -999;
+  if (dealBreakers.includes("Must be religiously affiliated") && !school.features.includes("Religious / values-based environment")) score -= 8;
+  if (dealBreakers.includes("Must be secular") && school.features.includes("Religious / values-based environment")) return -999;
+
+  return score;
+}
+
+function classifyTier(school, answers) {
+  const gpaMap = { "3.8 – 4.0": 3.9, "3.5 – 3.79": 3.65, "3.0 – 3.49": 3.25, "2.5 – 2.99": 2.75, "Below 2.5": 2.2 };
+  const satMap = { "SAT 1400+ / ACT 31+": 1430, "SAT 1200–1399 / ACT 26–30": 1300, "SAT 1000–1199 / ACT 20–25": 1100, "SAT below 1000 / ACT below 20": 950, "Test-optional / not yet taken": 1200 };
+  const sGPA = gpaMap[answers.gpa] || 3.5;
+  const sSAT = satMap[answers.test_score] || 1200;
+  const gpaDiff = school.avg_gpa - sGPA;
+  const satDiff = school.avg_sat - sSAT;
+  if (gpaDiff > 0.25 || satDiff > 120) return "reach";
+  if (gpaDiff < -0.35 && satDiff < -100) return "safety";
+  return "match";
+}
+
+function generateList(answers) {
+  const scored = SCHOOL_DB.map(s => ({
+    ...s,
+    score: scoreSchool(s, answers),
+    tier: classifyTier(s, answers),
+  })).filter(s => s.score > 0).sort((a, b) => b.score - a.score);
+
+  const reaches = scored.filter(s => s.tier === "reach").slice(0, 7);
+  const matches = scored.filter(s => s.tier === "match").slice(0, 10);
+  const safeties = scored.filter(s => s.tier === "safety").slice(0, 6);
+
+  const total = [...reaches, ...matches, ...safeties];
+  // Ensure 15-25 schools
+  if (total.length < 15) {
+    const extras = scored.filter(s => !total.find(t => t.name === s.name)).slice(0, 15 - total.length);
+    return [...total, ...extras];
+  }
+  return total.slice(0, 25);
+}
+
+// ── Styles ───────────────────────────────────────────────────────────────────
+const styles = {
+  app: {
+    fontFamily: "'Georgia', 'Times New Roman', serif",
+    background: BRAND.cream,
+    minHeight: "100vh",
+    color: BRAND.navy,
+  },
+  header: {
+    background: BRAND.navy,
+    padding: "16px 32px",
+    display: "flex",
+    alignItems: "center",
+    justifyContent: "space-between",
+    borderBottom: `4px solid ${BRAND.gold}`,
+  },
+  logo: {
+    display: "flex",
+    alignItems: "center",
+    gap: 12,
+  },
+  logoIcon: {
+    width: 44,
+    height: 44,
+    background: BRAND.gold,
+    borderRadius: 8,
+    display: "flex",
+    alignItems: "center",
+    justifyContent: "center",
+    fontSize: 22,
+  },
+  logoText: {
+    color: BRAND.white,
+    fontSize: 18,
+    fontWeight: "bold",
+    letterSpacing: "0.5px",
+  },
+  logoSub: {
+    color: BRAND.lightGold,
+    fontSize: 11,
+    letterSpacing: "1.5px",
+    textTransform: "uppercase",
+    marginTop: 2,
+  },
+  main: {
+    maxWidth: 760,
+    margin: "0 auto",
+    padding: "40px 20px",
+  },
+  card: {
+    background: BRAND.white,
+    borderRadius: 16,
+    boxShadow: "0 4px 24px rgba(27,43,75,0.10)",
+    padding: 40,
+    marginBottom: 24,
+    border: `1px solid ${BRAND.lightSlate}`,
+  },
+  progressBar: {
+    height: 6,
+    background: BRAND.lightSlate,
+    borderRadius: 3,
+    marginBottom: 32,
+    overflow: "hidden",
+  },
+  progressFill: (pct) => ({
+    height: "100%",
+    width: `${pct}%`,
+    background: `linear-gradient(90deg, ${BRAND.navy}, ${BRAND.gold})`,
+    borderRadius: 3,
+    transition: "width 0.4s ease",
+  }),
+  categoryBadge: {
+    display: "inline-flex",
+    alignItems: "center",
+    gap: 6,
+    background: `${BRAND.navy}12`,
+    color: BRAND.navy,
+    fontSize: 11,
+    fontWeight: "bold",
+    letterSpacing: "1px",
+    textTransform: "uppercase",
+    padding: "4px 10px",
+    borderRadius: 20,
+    marginBottom: 12,
+  },
+  questionText: {
+    fontSize: 22,
+    fontWeight: "bold",
+    color: BRAND.navy,
+    marginBottom: 28,
+    lineHeight: 1.4,
+  },
+  optionBtn: (selected) => ({
+    display: "block",
+    width: "100%",
+    textAlign: "left",
+    padding: "14px 18px",
+    marginBottom: 10,
+    borderRadius: 10,
+    border: `2px solid ${selected ? BRAND.navy : BRAND.lightSlate}`,
+    background: selected ? `${BRAND.navy}08` : BRAND.white,
+    color: BRAND.navy,
+    fontSize: 15,
+    cursor: "pointer",
+    transition: "all 0.15s",
+    fontFamily: "inherit",
+    display: "flex",
+    alignItems: "center",
+    gap: 10,
+  }),
+  checkCircle: (selected) => ({
+    width: 20,
+    height: 20,
+    borderRadius: "50%",
+    border: `2px solid ${selected ? BRAND.navy : BRAND.lightSlate}`,
+    background: selected ? BRAND.navy : "transparent",
+    flexShrink: 0,
+    display: "flex",
+    alignItems: "center",
+    justifyContent: "center",
+  }),
+  navRow: {
+    display: "flex",
+    justifyContent: "space-between",
+    alignItems: "center",
+    marginTop: 28,
+  },
+  btnPrimary: {
+    background: BRAND.navy,
+    color: BRAND.white,
+    border: "none",
+    borderRadius: 8,
+    padding: "13px 28px",
+    fontSize: 15,
+    fontWeight: "bold",
+    cursor: "pointer",
+    fontFamily: "inherit",
+    letterSpacing: "0.3px",
+  },
+  btnSecondary: {
+    background: "transparent",
+    color: BRAND.slate,
+    border: `1px solid ${BRAND.lightSlate}`,
+    borderRadius: 8,
+    padding: "12px 22px",
+    fontSize: 14,
+    cursor: "pointer",
+    fontFamily: "inherit",
+  },
+  btnGold: {
+    background: BRAND.gold,
+    color: BRAND.navy,
+    border: "none",
+    borderRadius: 8,
+    padding: "13px 28px",
+    fontSize: 15,
+    fontWeight: "bold",
+    cursor: "pointer",
+    fontFamily: "inherit",
+  },
+  tierSection: {
+    marginBottom: 32,
+  },
+  tierHeader: (color) => ({
+    display: "flex",
+    alignItems: "center",
+    gap: 10,
+    marginBottom: 16,
+    paddingBottom: 10,
+    borderBottom: `2px solid ${color}`,
+  }),
+  tierTitle: {
+    fontSize: 18,
+    fontWeight: "bold",
+    color: BRAND.navy,
+  },
+  tierBadge: (bg, color) => ({
+    background: bg,
+    color: color,
+    fontSize: 11,
+    fontWeight: "bold",
+    padding: "3px 8px",
+    borderRadius: 12,
+    letterSpacing: "0.5px",
+    textTransform: "uppercase",
+  }),
+  schoolCard: {
+    background: BRAND.white,
+    border: `1px solid ${BRAND.lightSlate}`,
+    borderRadius: 12,
+    padding: "16px 20px",
+    marginBottom: 10,
+    display: "flex",
+    justifyContent: "space-between",
+    alignItems: "flex-start",
+    gap: 12,
+  },
+  schoolName: {
+    fontSize: 16,
+    fontWeight: "bold",
+    color: BRAND.navy,
+    marginBottom: 4,
+  },
+  schoolMeta: {
+    fontSize: 12,
+    color: BRAND.slate,
+    marginBottom: 4,
+  },
+  schoolDesc: {
+    fontSize: 13,
+    color: BRAND.slate,
+    lineHeight: 1.5,
+  },
+  schoolType: (type) => ({
+    fontSize: 11,
+    fontWeight: "bold",
+    padding: "2px 8px",
+    borderRadius: 10,
+    background: type === "Public" ? "#E3F2FD" : "#FCE4EC",
+    color: type === "Public" ? "#1565C0" : "#880E4F",
+    whiteSpace: "nowrap",
+    flexShrink: 0,
+  }),
+};
+
+// ── Login / Account screen ────────────────────────────────────────────────────
+function AuthScreen({ onLogin }) {
+  const [mode, setMode] = useState("login");
+  const [name, setName] = useState("");
+  const [email, setEmail] = useState("");
+  const [password, setPassword] = useState("");
+  const [error, setError] = useState("");
+
+  const inputStyle = {
+    width: "100%",
+    padding: "12px 14px",
+    border: `1.5px solid ${BRAND.lightSlate}`,
+    borderRadius: 8,
+    fontSize: 15,
+    fontFamily: "inherit",
+    color: BRAND.navy,
+    background: BRAND.cream,
+    boxSizing: "border-box",
+    marginBottom: 14,
+    outline: "none",
+  };
+
+  const handleSubmit = () => {
+    if (!email || !password) { setError("Please fill in all fields."); return; }
+    if (mode === "signup" && !name) { setError("Please enter your name."); return; }
+
+    const key = `csa_user_${email}`;
+    if (mode === "signup") {
+      const existing = localStorage.getItem(key);
+      if (existing) { setError("An account with this email already exists."); return; }
+      const user = { name, email, password, createdAt: new Date().toISOString(), savedLists: [] };
+      localStorage.setItem(key, JSON.stringify(user));
+      onLogin(user);
+    } else {
+      const raw = localStorage.getItem(key);
+      if (!raw) { setError("No account found. Please sign up."); return; }
+      const user = JSON.parse(raw);
+      if (user.password !== password) { setError("Incorrect password."); return; }
+      onLogin(user);
+    }
+  };
+
+  return (
+    <div style={styles.app}>
+      <header style={styles.header}>
+        <div style={styles.logo}>
+          <div style={styles.logoIcon}>🎓</div>
+          <div>
+            <div style={styles.logoText}>College Smart Advising</div>
+            <div style={styles.logoSub}>College List Builder</div>
+          </div>
+        </div>
+      </header>
+      <div style={styles.main}>
+        <div style={{ textAlign: "center", marginBottom: 32 }}>
+          <h1 style={{ fontSize: 32, color: BRAND.navy, fontWeight: "bold", marginBottom: 8 }}>
+            {mode === "login" ? "Welcome Back" : "Create Your Account"}
+          </h1>
+          <p style={{ color: BRAND.slate, fontSize: 16, maxWidth: 440, margin: "0 auto" }}>
+            {mode === "login"
+              ? "Sign in to access your personalized college list and saved results."
+              : "Set up your client account to begin building your college list."}
+          </p>
+        </div>
+        <div style={{ ...styles.card, maxWidth: 440, margin: "0 auto" }}>
+          {mode === "signup" && (
+            <input style={inputStyle} placeholder="Your Full Name" value={name} onChange={e => setName(e.target.value)} />
+          )}
+          <input style={inputStyle} placeholder="Email Address" type="email" value={email} onChange={e => setEmail(e.target.value)} />
+          <input style={inputStyle} placeholder="Password" type="password" value={password} onChange={e => setPassword(e.target.value)} onKeyDown={e => e.key === "Enter" && handleSubmit()} />
+          {error && <div style={{ color: BRAND.red, fontSize: 13, marginBottom: 14 }}>⚠ {error}</div>}
+          <button style={{ ...styles.btnPrimary, width: "100%", padding: "14px", fontSize: 16 }} onClick={handleSubmit}>
+            {mode === "login" ? "Sign In →" : "Create Account →"}
+          </button>
+          <div style={{ textAlign: "center", marginTop: 18, fontSize: 14, color: BRAND.slate }}>
+            {mode === "login" ? (
+              <>Don't have an account?{" "}
+                <span style={{ color: BRAND.navy, cursor: "pointer", fontWeight: "bold" }} onClick={() => { setMode("signup"); setError(""); }}>Sign Up</span>
+              </>
+            ) : (
+              <>Already have an account?{" "}
+                <span style={{ color: BRAND.navy, cursor: "pointer", fontWeight: "bold" }} onClick={() => { setMode("login"); setError(""); }}>Sign In</span>
+              </>
+            )}
+          </div>
+        </div>
+        <p style={{ textAlign: "center", fontSize: 12, color: BRAND.slate, marginTop: 24, opacity: 0.7 }}>
+          This portal is for College Smart Advising clients only.
+        </p>
+      </div>
+    </div>
+  );
+}
+
+// ── Dashboard ────────────────────────────────────────────────────────────────
+function Dashboard({ user, onStartQuiz, onViewList, onLogout }) {
+  const hasList = user.savedLists && user.savedLists.length > 0;
+  const lastList = hasList ? user.savedLists[user.savedLists.length - 1] : null;
+
+  return (
+    <div style={styles.app}>
+      <header style={styles.header}>
+        <div style={styles.logo}>
+          <div style={styles.logoIcon}>🎓</div>
+          <div>
+            <div style={styles.logoText}>College Smart Advising</div>
+            <div style={styles.logoSub}>College List Builder</div>
+          </div>
+        </div>
+        <div style={{ display: "flex", alignItems: "center", gap: 16 }}>
+          <span style={{ color: BRAND.lightGold, fontSize: 14 }}>👋 {user.name}</span>
+          <button style={styles.btnSecondary} onClick={onLogout}>Sign Out</button>
+        </div>
+      </header>
+      <div style={styles.main}>
+        <div style={{ marginBottom: 32 }}>
+          <h1 style={{ fontSize: 28, fontWeight: "bold", color: BRAND.navy, marginBottom: 6 }}>Your College Planning Hub</h1>
+          <p style={{ color: BRAND.slate, fontSize: 15 }}>Use the questionnaire below to generate your personalized college list.</p>
+        </div>
+
+        {hasList && (
+          <div style={{ ...styles.card, borderLeft: `4px solid ${BRAND.gold}`, padding: "24px 28px" }}>
+            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", flexWrap: "wrap", gap: 12 }}>
+              <div>
+                <div style={{ fontSize: 12, letterSpacing: "1px", textTransform: "uppercase", color: BRAND.gold, fontWeight: "bold", marginBottom: 4 }}>Your Saved List</div>
+                <div style={{ fontSize: 20, fontWeight: "bold", color: BRAND.navy, marginBottom: 4 }}>{lastList.schools.length} Schools — {new Date(lastList.date).toLocaleDateString("en-US", { month: "long", day: "numeric", year: "numeric" })}</div>
+                <div style={{ fontSize: 14, color: BRAND.slate }}>
+                  {lastList.schools.filter(s => s.tier === "reach").length} Reach &nbsp;·&nbsp;
+                  {lastList.schools.filter(s => s.tier === "match").length} Match &nbsp;·&nbsp;
+                  {lastList.schools.filter(s => s.tier === "safety").length} Safety
+                </div>
+              </div>
+              <button style={styles.btnGold} onClick={onViewList}>View My List →</button>
+            </div>
+          </div>
+        )}
+
+        <div style={{ ...styles.card, textAlign: "center", padding: "48px 40px" }}>
+          <div style={{ fontSize: 48, marginBottom: 16 }}>📋</div>
+          <h2 style={{ fontSize: 24, fontWeight: "bold", color: BRAND.navy, marginBottom: 10 }}>
+            {hasList ? "Retake the Questionnaire" : "Build Your College List"}
+          </h2>
+          <p style={{ color: BRAND.slate, fontSize: 15, maxWidth: 460, margin: "0 auto 28px" }}>
+            Answer 18 questions about your academic profile, preferences, and goals. We'll generate a personalized list of 15–25 schools organized into Reach, Match, and Safety tiers.
+          </p>
+          <button style={{ ...styles.btnPrimary, fontSize: 16, padding: "15px 36px" }} onClick={onStartQuiz}>
+            {hasList ? "Retake Questionnaire →" : "Start Questionnaire →"}
+          </button>
+        </div>
+
+        <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(200px, 1fr))", gap: 16 }}>
+          {[
+            { icon: "🎯", label: "Personalized", desc: "Questions tailored to find your best-fit schools" },
+            { icon: "📊", label: "Tiered Results", desc: "Reach, Match & Safety categorization" },
+            { icon: "💾", label: "Saved to Account", desc: "Your list is always accessible here" },
+            { icon: "📤", label: "Shareable", desc: "Export or share with your counselor" },
+          ].map(f => (
+            <div key={f.label} style={{ ...styles.card, padding: "20px 18px", textAlign: "center", marginBottom: 0 }}>
+              <div style={{ fontSize: 28, marginBottom: 8 }}>{f.icon}</div>
+              <div style={{ fontWeight: "bold", color: BRAND.navy, marginBottom: 4 }}>{f.label}</div>
+              <div style={{ fontSize: 13, color: BRAND.slate, lineHeight: 1.4 }}>{f.desc}</div>
+            </div>
+          ))}
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// ── Quiz ─────────────────────────────────────────────────────────────────────
+function Quiz({ onComplete, onBack }) {
+  const [idx, setIdx] = useState(0);
+  const [answers, setAnswers] = useState({});
+  const q = QUESTIONS[idx];
+  const pct = Math.round((idx / QUESTIONS.length) * 100);
+
+  const toggle = (opt) => {
+    if (q.type === "single") {
+      setAnswers(a => ({ ...a, [q.id]: opt }));
+    } else {
+      setAnswers(a => {
+        const cur = a[q.id] || [];
+        return { ...a, [q.id]: cur.includes(opt) ? cur.filter(x => x !== opt) : [...cur, opt] };
+      });
+    }
+  };
+
+  const isSelected = (opt) => q.type === "single" ? answers[q.id] === opt : (answers[q.id] || []).includes(opt);
+  const canNext = q.type === "single" ? !!answers[q.id] : (answers[q.id] || []).length > 0;
+
+  const next = () => { if (idx < QUESTIONS.length - 1) setIdx(i => i + 1); else onComplete(answers); };
+  const prev = () => { if (idx > 0) setIdx(i => i - 1); };
+
+  return (
+    <div style={styles.app}>
+      <header style={styles.header}>
+        <div style={styles.logo}>
+          <div style={styles.logoIcon}>🎓</div>
+          <div>
+            <div style={styles.logoText}>College Smart Advising</div>
+            <div style={styles.logoSub}>College List Builder</div>
+          </div>
+        </div>
+        <button style={styles.btnSecondary} onClick={onBack}>← Dashboard</button>
+      </header>
+      <div style={styles.main}>
+        <div style={{ marginBottom: 8, display: "flex", justifyContent: "space-between", fontSize: 13, color: BRAND.slate }}>
+          <span>Question {idx + 1} of {QUESTIONS.length}</span>
+          <span>{pct}% complete</span>
+        </div>
+        <div style={styles.progressBar}><div style={styles.progressFill(pct)} /></div>
+
+        <div style={styles.card}>
+          <div style={styles.categoryBadge}>{q.icon} {q.category}</div>
+          <div style={styles.questionText}>{q.text}</div>
+          {q.type === "multi" && <div style={{ fontSize: 12, color: BRAND.slate, marginBottom: 16, fontStyle: "italic" }}>Select all that apply</div>}
+
+          {q.options.map(opt => (
+            <button key={opt} style={styles.optionBtn(isSelected(opt))} onClick={() => toggle(opt)}>
+              <div style={styles.checkCircle(isSelected(opt))}>
+                {isSelected(opt) && <span style={{ color: BRAND.white, fontSize: 12, lineHeight: 1 }}>✓</span>}
+              </div>
+              {opt}
+            </button>
+          ))}
+
+          {q.id === "rotc" && answers.rotc === "Not sure / tell me more" && (
+            <div style={{ background: "#EBF8FF", border: "1px solid #BEE3F8", borderRadius: 10, padding: "12px 16px", marginTop: 8, fontSize: 13, color: "#2C5282", lineHeight: 1.6 }}>
+              <strong>🎖️ About ROTC Scholarships:</strong> ROTC (Reserve Officers' Training Corps) programs offer full or partial scholarships covering tuition, fees, and a monthly stipend in exchange for a service commitment after graduation. Army, Navy/Marine, and Air Force each run their own programs — most major universities have at least one branch on campus. Your counselor can discuss whether this is a good fit for your goals.
+            </div>
+          )}
+
+          <div style={styles.navRow}>
+            <button style={styles.btnSecondary} onClick={prev} disabled={idx === 0}>← Back</button>
+            <button
+              style={{ ...styles.btnPrimary, opacity: canNext ? 1 : 0.4, cursor: canNext ? "pointer" : "not-allowed" }}
+              onClick={next}
+              disabled={!canNext}
+            >
+              {idx === QUESTIONS.length - 1 ? "Generate My List 🎉" : "Next →"}
+            </button>
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// ── Results ───────────────────────────────────────────────────────────────────
+function Results({ schools, user, answers, onBack, onRetake }) {
+  const reaches = schools.filter(s => s.tier === "reach");
+  const matches = schools.filter(s => s.tier === "match");
+  const safeties = schools.filter(s => s.tier === "safety");
+
+  const handlePrint = () => window.print();
+
+  const handleEmail = () => {
+    const subject = encodeURIComponent("My College List from College Smart Advising");
+    const body = encodeURIComponent(
+      `Hi,\n\nHere is my college list generated by College Smart Advising:\n\n` +
+      `REACH SCHOOLS:\n${reaches.map(s => `• ${s.name} (${s.state})`).join("\n")}\n\n` +
+      `MATCH SCHOOLS:\n${matches.map(s => `• ${s.name} (${s.state})`).join("\n")}\n\n` +
+      `SAFETY SCHOOLS:\n${safeties.map(s => `• ${s.name} (${s.state})`).join("\n")}\n\n` +
+      `Generated on ${new Date().toLocaleDateString()}\n` +
+      `Student: ${user.name} (${user.email})`
+    );
+    window.open(`mailto:edward@collegesmartadvising.com?subject=${subject}&body=${body}`);
+  };
+
+  const tierConfig = [
+    { label: "Reach Schools", key: "reach", list: reaches, color: BRAND.red, bg: "#FFF5F5", badge: ["#FECACA", BRAND.red], desc: "Selective schools — your stats are below their typical range, but strong fit and application can make a difference." },
+    { label: "Match Schools", key: "match", list: matches, color: BRAND.navy, bg: "#F0F4FF", badge: [BRAND.lightSlate, BRAND.navy], desc: "Well-matched schools — your profile aligns with their typical admitted student." },
+    { label: "Safety Schools", key: "safety", list: safeties, color: BRAND.green, bg: "#F0FAF5", badge: ["#C6F6D5", BRAND.green], desc: "Likely admits — schools where you exceed the typical profile. Still great options!" },
+  ];
+
+  return (
+    <div style={styles.app}>
+      <header style={styles.header}>
+        <div style={styles.logo}>
+          <div style={styles.logoIcon}>🎓</div>
+          <div>
+            <div style={styles.logoText}>College Smart Advising</div>
+            <div style={styles.logoSub}>College List Builder</div>
+          </div>
+        </div>
+        <button style={styles.btnSecondary} onClick={onBack}>← Dashboard</button>
+      </header>
+      <div style={styles.main}>
+        {/* Summary bar */}
+        <div style={{ ...styles.card, background: BRAND.navy, padding: "28px 32px", marginBottom: 24 }}>
+          <div style={{ color: BRAND.lightGold, fontSize: 12, letterSpacing: "1.5px", textTransform: "uppercase", fontWeight: "bold", marginBottom: 6 }}>Your Personalized College List</div>
+          <div style={{ color: BRAND.white, fontSize: 26, fontWeight: "bold", marginBottom: 12 }}>{user.name}'s {schools.length}-School List</div>
+          <div style={{ display: "flex", gap: 20, flexWrap: "wrap", marginBottom: 20 }}>
+            {[
+              { label: "Reach", count: reaches.length, color: "#FC8181" },
+              { label: "Match", count: matches.length, color: BRAND.lightGold },
+              { label: "Safety", count: safeties.length, color: "#68D391" },
+            ].map(t => (
+              <div key={t.label} style={{ color: t.color }}>
+                <span style={{ fontSize: 22, fontWeight: "bold" }}>{t.count}</span>
+                <span style={{ fontSize: 14, marginLeft: 6, opacity: 0.85 }}>{t.label}</span>
+              </div>
+            ))}
+          </div>
+          <div style={{ display: "flex", gap: 12, flexWrap: "wrap" }}>
+            <button style={styles.btnGold} onClick={handleEmail}>📧 Share with Counselor</button>
+            <button style={{ ...styles.btnSecondary, color: BRAND.white, borderColor: "rgba(255,255,255,0.3)" }} onClick={handlePrint}>🖨️ Print / Export</button>
+            <button style={{ ...styles.btnSecondary, color: BRAND.white, borderColor: "rgba(255,255,255,0.3)" }} onClick={onRetake}>🔄 Retake Quiz</button>
+          </div>
+        </div>
+
+        {/* Tier sections */}
+        {tierConfig.map(({ label, list, color, bg, badge, desc }) => list.length > 0 && (
+          <div key={label} style={{ ...styles.card, background: bg, marginBottom: 24 }}>
+            <div style={styles.tierHeader(color)}>
+              <div style={styles.tierTitle}>{label}</div>
+              <div style={styles.tierBadge(badge[0], badge[1])}>{list.length} schools</div>
+            </div>
+            <p style={{ fontSize: 13, color: BRAND.slate, marginBottom: 16, fontStyle: "italic" }}>{desc}</p>
+            {list.map(s => (
+              <div key={s.name} style={styles.schoolCard}>
+                <div style={{ flex: 1 }}>
+                  <div style={styles.schoolName}>{s.name}</div>
+                  <div style={styles.schoolMeta}>
+                    📍 {s.state} &nbsp;·&nbsp; {s.size.charAt(0).toUpperCase() + s.size.slice(1)} university &nbsp;·&nbsp; Avg GPA {s.avg_gpa} &nbsp;·&nbsp; Avg SAT {s.avg_sat}
+                  </div>
+                  <div style={styles.schoolDesc}>{s.description}</div>
+                  <div style={{ marginTop: 8, display: "flex", flexWrap: "wrap", gap: 5 }}>
+                    {s.features.slice(0, 3).map(f => (
+                      <span key={f} style={{ fontSize: 11, background: `${BRAND.navy}10`, color: BRAND.navy, padding: "2px 8px", borderRadius: 10 }}>{f}</span>
+                    ))}
+                    {s.test_optional && (
+                      <span style={{ fontSize: 11, background: "#EBF8FF", color: "#2B6CB0", padding: "2px 8px", borderRadius: 10, fontWeight: "bold" }}>✓ Test-Optional</span>
+                    )}
+                    {s.rotc && s.rotc.length > 0 && (
+                      <span style={{ fontSize: 11, background: "#F0FFF4", color: "#276749", padding: "2px 8px", borderRadius: 10, fontWeight: "bold" }}>🎖️ ROTC: {s.rotc.join(", ")}</span>
+                    )}
+                  </div>
+                  {s.auto_scholarship && (
+                    <div style={{ marginTop: 6, fontSize: 12, color: "#744210", background: "#FFFBEB", border: "1px solid #F6E05E", borderRadius: 8, padding: "5px 10px" }}>
+                      💰 <strong>OOS Merit:</strong> {s.auto_scholarship}
+                    </div>
+                  )}
+                </div>
+                <div style={styles.schoolType(s.type)}>{s.type}</div>
+              </div>
+            ))}
+          </div>
+        ))}
+
+        <div style={{ ...styles.card, textAlign: "center", padding: "28px", background: `${BRAND.navy}08` }}>
+          <div style={{ fontSize: 20, fontWeight: "bold", color: BRAND.navy, marginBottom: 8 }}>Ready to take the next step?</div>
+          <p style={{ color: BRAND.slate, fontSize: 14, marginBottom: 16 }}>Schedule a session with your College Smart Advising counselor to review this list in detail.</p>
+          <a href="https://collegesmartadvising.com" target="_blank" style={{ ...styles.btnPrimary, textDecoration: "none", display: "inline-block" }}>
+            Visit College Smart Advising →
+          </a>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// ── Root App ─────────────────────────────────────────────────────────────────
+function App() {
+  const [screen, setScreen] = useState("auth"); // auth | dashboard | quiz | results
+  const [user, setUser] = useState(null);
+  const [resultSchools, setResultSchools] = useState(null);
+  const [quizAnswers, setQuizAnswers] = useState(null);
+
+  const handleLogin = (u) => { setUser(u); setScreen("dashboard"); };
+  const handleLogout = () => { setUser(null); setScreen("auth"); };
+
+  const handleQuizComplete = (answers) => {
+    const schools = generateList(answers);
+    setQuizAnswers(answers);
+    setResultSchools(schools);
+
+    // Save to user account
+    const updated = {
+      ...user,
+      savedLists: [...(user.savedLists || []), { date: new Date().toISOString(), schools, answers }],
+    };
+    setUser(updated);
+    localStorage.setItem(`csa_user_${user.email}`, JSON.stringify(updated));
+    setScreen("results");
+  };
+
+  // Restore saved list on login
+  const handleViewList = () => {
+    if (user?.savedLists?.length > 0) {
+      const last = user.savedLists[user.savedLists.length - 1];
+      setResultSchools(last.schools);
+      setQuizAnswers(last.answers);
+      setScreen("results");
+    }
+  };
+
+  if (screen === "auth") return <AuthScreen onLogin={handleLogin} />;
+  if (screen === "dashboard") return <Dashboard user={user} onStartQuiz={() => setScreen("quiz")} onViewList={handleViewList} onLogout={handleLogout} />;
+  if (screen === "quiz") return <Quiz onComplete={handleQuizComplete} onBack={() => setScreen("dashboard")} />;
+  if (screen === "results") return <Results schools={resultSchools} user={user} answers={quizAnswers} onBack={() => setScreen("dashboard")} onRetake={() => setScreen("quiz")} />;
+  return null;
+}
+
+
+    const root = ReactDOM.createRoot(document.getElementById('root'));
+    root.render(<App />);
+  </script>
+</body>
+</html>
